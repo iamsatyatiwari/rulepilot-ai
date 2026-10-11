@@ -59,6 +59,7 @@ class BacktestResponse(BaseModel):
     baseline_metrics: EvaluationMetrics
     candidate_metrics: EvaluationMetrics
     fraud_missed_by_baseline: list[str]
+    fraud_missed_by_candidate: list[str]
 
 
 class DiscoveryRequest(BaseModel):
@@ -111,6 +112,11 @@ def run_backtest(request: BacktestRequest) -> BacktestResponse:
         for record, predicted, label in zip(test, baseline_predictions, labels)
         if label and not predicted
     ]
+    candidate_missed = [
+        record.transaction_id or ""
+        for record, predicted, label in zip(test, candidate_predictions, labels)
+        if label and not predicted
+    ]
     return BacktestResponse(
         evaluated_split="test",
         baseline_rule=BASELINE_RULE,
@@ -118,6 +124,7 @@ def run_backtest(request: BacktestRequest) -> BacktestResponse:
         baseline_metrics=calculate_metrics(baseline_predictions, labels),
         candidate_metrics=calculate_metrics(candidate_predictions, labels),
         fraud_missed_by_baseline=missed,
+        fraud_missed_by_candidate=candidate_missed,
     )
 
 

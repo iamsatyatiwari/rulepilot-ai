@@ -68,6 +68,9 @@ def test_backtest_compares_baseline_and_candidate_on_test_split():
     assert body["evaluated_split"] == "test"
     assert body["baseline_metrics"]["total_evaluated"] == body["candidate_metrics"]["total_evaluated"]
     assert isinstance(body["fraud_missed_by_baseline"], list)
+    assert isinstance(body["fraud_missed_by_candidate"], list)
+    assert len(body["fraud_missed_by_baseline"]) == body["baseline_metrics"]["false_negatives"]
+    assert len(body["fraud_missed_by_candidate"]) == body["candidate_metrics"]["false_negatives"]
 
 
 def test_discovery_endpoint_returns_candidate_and_evidence():

@@ -1,6 +1,6 @@
 # RulePilot AI
 
-RulePilot AI is a foundation for continuous financial rule intelligence. Milestone 2A adds a small deterministic rule engine, transparent metrics, a fixed synthetic fixture, a baseline, candidate evaluation, and a bounded threshold-discovery experiment. The work is deliberately local and inspectable: it does not call an AI service or execute generated code.
+RulePilot AI is a foundation for continuous financial rule intelligence. Milestone 2A adds a small deterministic rule engine, transparent metrics, a fixed synthetic fixture, a baseline, candidate evaluation, and a bounded threshold-discovery experiment. Milestone 2B connects the React dashboard to those APIs for data-backed discovery, held-out backtesting, false-negative evidence, and proposal review status. The work is local and inspectable: it does not call an AI service or execute generated code.
 
 ## Architecture
 
@@ -11,6 +11,7 @@ RulePilot AI is a foundation for continuous financial rule intelligence. Milesto
 - `backend/app/baseline.py` defines the documented baseline: flag amount greater than or equal to 1,500 synthetic currency units. It is a comparison fixture, not a production recommendation.
 - `backend/app/discovery.py` derives at most eight thresholds per eligible numeric feature from training feature values. It evaluates non-degenerate rules with minimum support on training, selects by validation F1 (then precision, recall, and false-positive rate), and evaluates the selected candidate once on the held-out test records. The discovery selection function accepts only training and validation data; the test split is passed only to final reporting.
 - FastAPI endpoints are wired in `backend/app/api.py`; rule models, execution, metrics, data, and discovery remain usable without FastAPI.
+- The dashboard loads API health, the baseline catalog, and discovery/split information from the backend. Backtest comparisons and missed-fraud IDs come from the held-out backtest response. Only transaction IDs are displayed in the false-negative table.
 
 Candidates are returned as drafts with their exact condition and validation/test evidence. Candidate results are not guaranteed to outperform the baseline. Compare the reported held-out metrics and false positives; do not treat a result from the synthetic fixture as evidence about real payment traffic.
 
@@ -69,7 +70,7 @@ Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/v1/backtests/run' -Method Post
 Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/v1/rules/discover' -Method Post -ContentType 'application/json' -Body '{"seed":41}'
 ```
 
-The backtest response places baseline and candidate metrics side by side and lists synthetic fraud IDs missed by the baseline on the test split. Discovery reports the selected candidate, its validation metrics, one held-out candidate evaluation, baseline test metrics, split sizes, and the missed baseline IDs. It does not assert that the candidate is better.
+The backtest response places baseline and candidate metrics side by side and lists synthetic fraud IDs missed by both the baseline and candidate on the test split. Discovery reports the selected candidate, its validation metrics, one held-out candidate evaluation, baseline test metrics, split sizes, and the missed baseline IDs. It does not assert that the candidate is better.
 
 ## Windows PowerShell setup
 
@@ -97,7 +98,7 @@ If PowerShell blocks venv activation, run these from `backend` instead:
 
 The API is at `http://127.0.0.1:8000`; interactive docs are at `/docs`.
 
-### Frontend (unchanged in Milestone 2A)
+### Frontend dashboard
 
 In a second PowerShell window, from the repository root:
 
@@ -107,7 +108,7 @@ npm ci
 npm run dev
 ```
 
-Open Vite's printed local URL, normally `http://localhost:5173`. The dashboard health indicator checks `http://localhost:8000/health` by default. To change it, copy the root `.env.example` to `frontend/.env.local`, set `VITE_API_BASE_URL`, and restart Vite.
+Open Vite's printed local URL, normally `http://localhost:5173`. The dashboard reads the backend base URL from `VITE_API_BASE_URL`; by default it uses `http://localhost:8000`. To change it, copy the root `.env.example` to `frontend/.env.local`, set `VITE_API_BASE_URL`, and restart Vite. The backend currently has no persistent approve/reject endpoint, so the candidate remains a draft pending review; the dashboard does not simulate a decision or activate rules.
 
 ### Run backend tests
 
@@ -119,6 +120,17 @@ cd backend
 ```
 
 If you activated the backend virtual environment, use `python -m pytest -q` from `backend`.
+
+### Run frontend checks
+
+From the repository root:
+
+```powershell
+cd frontend
+npm test
+npm exec -- tsc -b --pretty false
+npm run build
+```
 
 ## Limitations
 
