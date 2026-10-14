@@ -138,6 +138,12 @@ describe('Intelligence investigations workspace', () => {
         return jsonResponse(stored)
       }
       if (url.endsWith('/api/v1/investigations')) return jsonResponse([])
+      if (url.endsWith('/api/v1/rule-catalog')) {
+        const approved = (stored.reviews as { decision: string; reviewer: string; comment: string; decided_at: string }[])
+          .filter((review) => review.decision === 'approve')
+          .map((review) => ({ rule: { ...candidate, status: 'approved' }, approved_by: review.reviewer, approved_at: review.decided_at, review_comment: review.comment, investigation_id: 'inv-1', advisory_title: advisory.title, technique: 'Card testing', activation: 'not_activated' }))
+        return jsonResponse({ active: [baselineRule], approved_not_active: approved })
+      }
       if (url.endsWith('/api/v1/investigations/inv-1/review')) {
         const body = JSON.parse(String(init?.body))
         stored = { ...stored, reviews: [{ review_id: 'inv-1-R1', investigation_id: 'inv-1', rule_id: candidate.rule_id, rule_version: 1, decided_at: '2026-10-14T10:05:00Z', activation: 'not_activated', ...body }] }
@@ -186,6 +192,29 @@ describe('Intelligence investigations workspace', () => {
     const history = await screen.findByRole('list', { name: 'Review history' })
     expect(within(history).getByText('Approved for further testing')).toBeInTheDocument()
     expect(within(history).getByText(/activation: not activated/)).toBeInTheDocument()
+
+    const catalog = screen.getByRole('region', { name: 'Reviewed rule catalog' })
+    expect(await within(catalog).findByText('Approved · not active')).toBeInTheDocument()
+    expect(within(catalog).getByText(/Approved by analyst-1/)).toBeInTheDocument()
+  })
+
+  it('shows the reviewed rule catalog and a covered-by-existing-rules result', async () => {
+    const normalFetch = fetchMock.getMockImplementation() as (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/api/v1/investigations') && init?.method === 'POST') {
+        return jsonResponse({
+          report: report({ status: 'covered_by_existing_rules', headline: 'The agent assessed this technique as already covered by the reviewed rule set (RP-BASELINE-001, AGT-abc12345-1); no new rule is proposed.', selected_rule: null, holdout: null, holdout_delta: null, reference_rules: [baselineRule, { ...candidate, status: 'approved' }], review_history_used: 1 }),
+          reviews: [],
+        })
+      }
+      return normalFetch(input, init)
+    })
+    render(<App />)
+    expect(await screen.findByRole('region', { name: 'Reviewed rule catalog' })).toHaveTextContent('Active baseline')
+    fireEvent.click(await screen.findByRole('button', { name: `Investigate ${advisory.title}` }))
+    expect(await screen.findByText(/already covered by the reviewed rule set/)).toBeInTheDocument()
+    expect(screen.getByText(/compared against 2 reviewed rule\(s\) · 1 prior review\(s\)/)).toBeInTheDocument()
+    expect(screen.getByText('No candidate awaits review')).toBeInTheDocument()
   })
 
   it('shows an untestable advisory without inventing a candidate or held-out result', async () => {

@@ -19,13 +19,17 @@ from app.data import DEFAULT_SPLIT_SEED
 from app.datasets import SCENARIO_DATASET_ID
 from app.governance import (
     AuditEvent,
+    CatalogEntry,
     GovernanceStore,
     InvestigationSummary,
     ReviewRecord,
     ReviewRequest,
     StoredInvestigation,
 )
+from app.baseline import BASELINE_RULE
 from app.intel.advisories import Advisory, AdvisorySummary, load_curated_advisories, summarize
+from app.rules.models import Rule
+from app.storage import create_backend
 
 MAX_CUSTOM_ADVISORY_CHARS = 8_000
 MAX_CONCURRENT_INVESTIGATIONS = 2
@@ -37,11 +41,11 @@ _run_slots = asyncio.Semaphore(MAX_CONCURRENT_INVESTIGATIONS)
 
 @lru_cache(maxsize=1)
 def _default_store() -> GovernanceStore:
-    store = GovernanceStore(get_settings().data_dir)
+    settings = get_settings()
+    store = GovernanceStore(create_backend(settings.store, settings.data_dir, settings.gcp_project))
     for path in sorted(RECORDED_DIR.glob("*.json")):
         report = InvestigationReport.model_validate(json.loads(path.read_text(encoding="utf-8")))
-        if store.get(report.investigation_id) is None:
-            store.add(report.model_copy(update={"origin": "recorded"}), persist=False)
+        store.add_recorded(report.model_copy(update={"origin": "recorded"}))
     return store
 
 
@@ -140,7 +144,14 @@ async def create_investigation(
     if _run_slots.locked():
         raise HTTPException(status_code=429, detail="investigation capacity is busy; retry shortly")
     async with _run_slots:
-        report = await run_investigation(advisory, request.dataset_id, request.seed, settings)
+        report = await run_investigation(
+            advisory,
+            request.dataset_id,
+            request.seed,
+            settings,
+            approved_rules=store.approved_rules(),
+            review_history=store.review_history(),
+        )
     store.add(report)
     stored = store.get(report.investigation_id)
     assert stored is not None
@@ -171,6 +182,17 @@ def review_investigation(
         raise HTTPException(status_code=404, detail="investigation not found") from error
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+class RuleCatalogResponse(BaseModel):
+    active: list[Rule]
+    approved_not_active: list[CatalogEntry]
+
+
+@router.get("/rule-catalog", response_model=RuleCatalogResponse, tags=["governance"])
+def rule_catalog(store: GovernanceStore = Depends(get_store)) -> RuleCatalogResponse:
+    """The reviewed rule set: the active baseline plus human-approved, inactive rules."""
+    return RuleCatalogResponse(active=[BASELINE_RULE], approved_not_active=store.catalog())
 
 
 @router.get("/audit", response_model=list[AuditEvent], tags=["governance"])

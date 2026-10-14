@@ -130,7 +130,12 @@ export type Coverage = {
   existing_rules_use_required_fields: string[]
 }
 
-export type InvestigationStatus = 'pending_human_review' | 'insufficient_evidence' | 'not_testable' | 'agent_incomplete'
+export type InvestigationStatus =
+  | 'pending_human_review'
+  | 'covered_by_existing_rules'
+  | 'insufficient_evidence'
+  | 'not_testable'
+  | 'agent_incomplete'
 
 export type InvestigationReport = {
   investigation_id: string
@@ -161,6 +166,8 @@ export type InvestigationReport = {
   candidates: { rule: Rule; validation: SplitComparison }[]
   selected_rule: Rule | null
   baseline_rule: Rule
+  reference_rules?: Rule[]
+  review_history_used?: number
   holdout: SplitComparison | null
   holdout_delta: {
     recall_change: number
@@ -200,6 +207,19 @@ export type InvestigationSummary = {
   selected_rule_id: string | null
   review_decision: ReviewDecision | null
 }
+
+export type CatalogEntry = {
+  rule: Rule
+  approved_by: string
+  approved_at: string
+  review_comment: string
+  investigation_id: string
+  advisory_title: string
+  technique: string | null
+  activation: 'not_activated'
+}
+
+export type RuleCatalog = { active: Rule[]; approved_not_active: CatalogEntry[] }
 
 export type CustomAdvisory = { title: string; publisher: string; source_url: string; text: string }
 

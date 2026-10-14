@@ -21,9 +21,9 @@ Status values: `done`, `in progress`, `todo`, `deferred`.
 
 | ID | Task | Status |
 | --- | --- | --- |
-| L1 | Approved rules join the rule catalog (approved, inactive, versioned); coverage and comparisons include them | in progress |
-| L2 | `get_review_history` tool: prior decisions and comments as untrusted data | in progress |
-| L3 | Firestore-backed `GovernanceStore` for Cloud Run persistence | in progress |
+| L1 | Approved rules join the rule catalog (approved, inactive, versioned); coverage and comparisons include them | done |
+| L2 | `get_review_history` tool: prior decisions and comments as untrusted data | done |
+| L3 | Firestore-backed `GovernanceStore` for Cloud Run persistence | done (fake-client tested; verify on GCP at deploy) |
 | L4 | Golden-set evaluation script for prompt/model changes | todo |
 | L5 | Scheduled ingestion (Cloud Scheduler + Cloud Run Job) | deferred |
 | L6 | Re-backtest approved rules on new data windows (drift) | deferred |

@@ -1,9 +1,9 @@
 {
-  "investigation_id": "d382f14cbf67414f957db7e21bb82177",
-  "created_at": "2026-10-14T09:16:36.765681Z",
+  "investigation_id": "a5193d19d950416f876f0720bdf0b6c6",
+  "created_at": "2026-10-14T09:42:07.783526Z",
   "origin": "live",
   "status": "pending_human_review",
-  "headline": "Adding AGT-d382f14c-2 changed held-out rule-set recall by +51.3 pp and false-positive rate by +0.52 pp (+26 alerts). Awaiting human review.",
+  "headline": "Adding AGT-a5193d19-3 to 1 existing rule(s) changed held-out rule-set recall by +41.0 pp and false-positive rate by +0.26 pp (+19 alerts). Awaiting human review.",
   "advisory": {
     "advisory_id": "jpm-card-testing",
     "title": "Preventing Card Testing: Spot It Early, Stop It Fast",
@@ -14,7 +14,7 @@
     "source_type": "industry_guidance",
     "rights_note": "Short attributed excerpts quoted for analysis; full text remains at the source URL.",
     "content_sha256": "c82a228ac8e49dcd06be69f89b60a8f54095b39045e6a258ee5212b76728ae29",
-    "excerpt": "Card testing is when fraudsters attempt to validate stolen card details by making $0 or low-dollar transactions.\nFraud tactics are evolving, and card testing attacks are increasingly targeting e-commerce and mobile checkout.\nThey run $0 or small-dollar attempts at real merchants to confirm a card is active and may retry to fill in missing details (like CVV or expiration date).\nAutomated testing is the most common.\nMany different card numbers attempted in a short time—often from the same IP address, device or small set of sessions.\nMore failed payments than usual, including repeated CVV or expiration date mismatch errors.\nMultiple attempts on the same card or session where only one field changes each time (for example, cycling CVV or expiration date values).\nA wave of $0 authorizations or low-dollar transactions used to test cards with minimal cost and attention."
+    "excerpt": "Card testing is when fraudsters attempt to validate stolen card details by making $0 or low-dollar transactions.\nFraud tactics are evolving, and card testing attacks are increasingly targeting e-commerce and mobile checkout.\nThey run $0 or small-dollar attempts at real merchants to confirm a card is active and may retry to fill in missing details (like CVV or expiration date).\nAutomated testing is the most common.\nMany different card numbers attempted in a short time\u2014often from the same IP address, device or small set of sessions.\nMore failed payments than usual, including repeated CVV or expiration date mismatch errors.\nMultiple attempts on the same card or session where only one field changes each time (for example, cycling CVV or expiration date values).\nA wave of $0 authorizations or low-dollar transactions used to test cards with minimal cost and attention."
   },
   "dataset": {
     "dataset_id": "card-scenario-v2",
@@ -34,54 +34,56 @@
   "model_run": {
     "provider": "google-gemini",
     "framework": "google-adk",
-    "model": "gemini-3.8-flash",
-    "model_version": "gemini-3.8-flash",
+    "model": "gemini-3.5-flash-lite",
+    "model_version": "gemini-3.5-flash-lite",
     "max_llm_calls": 12,
     "timeout_seconds": 120,
     "llm_calls": 8,
-    "input_tokens": 42710,
-    "output_tokens": 1470,
-    "errors": []
+    "input_tokens": 29718,
+    "output_tokens": 981,
+    "errors": [
+      "gemini-3.8-flash attempt 1: ResourceExhaustedError: 429 RESOURCE_EXHAUSTED",
+      "gemini-3.8-flash attempt 2: ResourceExhaustedError: 429 RESOURCE_EXHAUSTED",
+      "gemini-flash-latest attempt 1: ResourceExhaustedError: 429 RESOURCE_EXHAUSTED",
+      "gemini-flash-latest attempt 2: ResourceExhaustedError: 429 RESOURCE_EXHAUSTED",
+      "gemini-3.6-flash attempt 1: ServerError: 503 UNAVAILABLE",
+      "gemini-3.6-flash attempt 2: ServerError: 503 UNAVAILABLE"
+    ]
   },
   "findings": {
-    "technique_name": "Card Testing",
-    "summary": "Card testing involves fraudsters validating stolen card credentials through automated $0 or low-dollar authorization attempts on e-commerce and mobile checkout platforms, often cycling CVV or expiration dates and generating high velocity or elevated decline rates.",
+    "technique_name": "Card Testing Attack",
+    "summary": "The advisory details card testing attacks where fraudsters execute automated low-dollar transactions and small-amount authorizations alongside repeated failed attempts to validate stolen card details.",
     "behaviors": [
-      "Fraudsters validate stolen card details using $0 or low-dollar transactions to confirm the card is active.",
-      "Card testing attacks increasingly target e-commerce and mobile checkout channels.",
-      "Fraudsters rapidly retry transactions on cards, cycling missing details such as CVV or expiration dates.",
-      "Automated testing scripts execute rapid attempts across single or multiple cards from the same device, IP, or session."
+      "Fraudsters attempt to validate stolen card details by making $0 or low-dollar transactions",
+      "Automated testing running many different card numbers in a short time from the same IP address, device, or session",
+      "More failed payments than usual, including repeated CVV or expiration date mismatch errors",
+      "Multiple attempts on the same card or session where only one field changes each time"
     ],
     "indicators": [
-      "Low-dollar or $0 authorization attempts (synthetic amount <= 30).",
-      "Card-not-present / e-commerce or mobile transactions (card_present = 0).",
-      "Elevated short-term transaction velocity on the card (transactions_1h >= 3).",
-      "Repeated authorization declines in the preceding 24 hours (declined_attempts_24h >= 2).",
-      "Multiple failed authorization responses specifically indicating CVV or expiry mismatch errors."
+      "$0 or small-dollar attempts at real merchants",
+      "High volume of failed payments and mismatch errors",
+      "Rapid transaction velocity in a short time frame"
     ],
     "required_fields": [
       "amount",
-      "card_present",
-      "transactions_1h",
       "declined_attempts_24h",
+      "transactions_1h",
       "ip_address",
-      "device_id",
-      "decline_reason"
+      "device_id"
     ],
     "testable_hypotheses": [
-      "Low-dollar card-not-present transactions with high hourly velocity are significantly more likely to be card testing fraud than legitimate traffic.",
-      "Low-dollar card-not-present transactions preceded by multiple declines within 24 hours indicate credential trial-and-error testing."
+      "Cards with high transaction velocity within 1 hour and multiple declined attempts in 24 hours exhibit card testing behavior.",
+      "Low-dollar transactions combined with prior declined attempts identify card validation attempts."
     ],
     "uncertainties": [
-      "The dataset is synthetic, and card-testing patterns were injected rather than observed in live merchant traffic.",
-      "Advisory details regarding IP, device, and specific decline reasons (CVV/expiration mismatches) cannot be directly verified due to missing fields."
+      "Advisory references IP addresses and device IDs which are absent from the transaction dataset schema.",
+      "Simulated merchant gateway error codes for CVV/expiration mismatches are represented via aggregated decline counters."
     ],
     "evidence_quotes": [
       "Card testing is when fraudsters attempt to validate stolen card details by making $0 or low-dollar transactions.",
-      "Fraud tactics are evolving, and card testing attacks are increasingly targeting e-commerce and mobile checkout.",
-      "They run $0 or small-dollar attempts at real merchants to confirm a card is active and may retry to fill in missing details (like CVV or expiration date).",
-      "Many different card numbers attempted in a short time—often from the same IP address, device or small set of sessions.",
-      "More failed payments than usual, including repeated CVV or expiration date mismatch errors."
+      "Many different card numbers attempted in a short time\u2014often from the same IP address, device or small set of sessions.",
+      "More failed payments than usual, including repeated CVV or expiration date mismatch errors.",
+      "Multiple attempts on the same card or session where only one field changes each time (for example, cycling CVV or expiration date values)."
     ]
   },
   "evidence_quotes": [
@@ -90,19 +92,15 @@
       "verified": true
     },
     {
-      "quote": "Fraud tactics are evolving, and card testing attacks are increasingly targeting e-commerce and mobile checkout.",
-      "verified": true
-    },
-    {
-      "quote": "They run $0 or small-dollar attempts at real merchants to confirm a card is active and may retry to fill in missing details (like CVV or expiration date).",
-      "verified": true
-    },
-    {
-      "quote": "Many different card numbers attempted in a short time—often from the same IP address, device or small set of sessions.",
+      "quote": "Many different card numbers attempted in a short time\u2014often from the same IP address, device or small set of sessions.",
       "verified": true
     },
     {
       "quote": "More failed payments than usual, including repeated CVV or expiration date mismatch errors.",
+      "verified": true
+    },
+    {
+      "quote": "Multiple attempts on the same card or session where only one field changes each time (for example, cycling CVV or expiration date values).",
       "verified": true
     }
   ],
@@ -110,14 +108,12 @@
     "status": "partially_testable",
     "available_fields": [
       "amount",
-      "card_present",
-      "transactions_1h",
-      "declined_attempts_24h"
+      "declined_attempts_24h",
+      "transactions_1h"
     ],
     "missing_fields": [
       "ip_address",
-      "device_id",
-      "decline_reason"
+      "device_id"
     ],
     "existing_rule_fields": [
       "amount"
@@ -128,43 +124,37 @@
   },
   "agent_conclusion": {
     "coverage_assessment": "gap_identified",
-    "selected_candidate_rule_id": "AGT-d382f14c-2",
+    "selected_candidate_rule_id": "AGT-a5193d19-3",
     "recommendation": "recommend_for_review",
-    "rationale": "The existing baseline rule (RP-BASELINE-001) only targets high transaction amounts (>= 1,500), leaving a critical detection gap for card testing, which specifically uses low-dollar authorizations. Candidate AGT-d382f14c-2 closes this gap by detecting card-not-present transactions (card_present = 0) with low amounts (amount <= 30) and high hourly attempt velocity (transactions_1h >= 3). On validation data, combining this candidate with the baseline increases recall from 36.84% to 84.21% (+47.37 percentage points) while maintaining 78.05% precision and a low false positive rate (0.78%).",
+    "rationale": "The advisory highlights card testing via small-dollar transactions, rapid velocity, and high failure/decline rates. While IP address and device ID are unavailable, the rule combining declined_attempts_24h and transactions_1h successfully bridges the coverage gap on the validation split, improving recall from 36.8% to 76.3% with minimal increase in false positives.",
     "limitations": [
-      "The dataset is fully synthetic and results do not measure real-world detection performance.",
-      "Key advisory indicators such as IP address, device ID, session ID, and specific error codes (CVV/expiration mismatch) are absent from the dataset.",
-      "Cross-card testing patterns across multiple cards at the same merchant or IP cannot be evaluated with card-level transaction records alone."
+      "IP address and device ID fields are not available in the dataset schema.",
+      "Synthetic dataset cannot capture real-world merchant gateway error codes or exact field-cycling patterns."
     ]
   },
   "candidates": [
     {
       "rule": {
-        "rule_id": "AGT-d382f14c-1",
-        "name": "Low-amount CNP with prior declines",
-        "description": "Agent-proposed candidate from investigation d382f14cbf67414f957db7e21bb82177.",
-        "rationale": "Detects card testing attacks targeting e-commerce (card_present=0) using low-dollar amounts (amount<=30) following multiple failed authorization attempts (declined_attempts_24h>=2).",
+        "rule_id": "AGT-a5193d19-1",
+        "name": "Low amount with prior declines",
+        "description": "Agent-proposed candidate from investigation a5193d19d950416f876f0720bdf0b6c6.",
+        "rationale": "Captures small-dollar card testing attempts following prior declined attempts.",
         "conditions": [
-          {
-            "field": "card_present",
-            "operator": "equals",
-            "value": 0.0
-          },
-          {
-            "field": "amount",
-            "operator": "less_than_or_equal",
-            "value": 30.0
-          },
           {
             "field": "declined_attempts_24h",
             "operator": "greater_than_or_equal",
             "value": 2.0
+          },
+          {
+            "field": "amount",
+            "operator": "less_than",
+            "value": 10.0
           }
         ],
         "logical_operator": "and",
         "status": "draft",
         "version": 1,
-        "created_at": "2026-10-14T09:15:42.659117Z",
+        "created_at": "2026-10-14T09:42:01.579127Z",
         "created_by": "rulepilot-agent"
       },
       "validation": {
@@ -182,25 +172,25 @@
           "total_evaluated": 1199
         },
         "candidate_metrics": {
-          "true_positives": 18,
-          "false_positives": 7,
-          "false_negatives": 20,
-          "true_negatives": 1154,
-          "precision": 0.72,
-          "recall": 0.47368421052631576,
-          "false_positive_rate": 0.006029285099052541,
-          "total_flagged": 25,
+          "true_positives": 6,
+          "false_positives": 10,
+          "false_negatives": 32,
+          "true_negatives": 1151,
+          "precision": 0.375,
+          "recall": 0.15789473684210525,
+          "false_positive_rate": 0.008613264427217916,
+          "total_flagged": 16,
           "total_evaluated": 1199
         },
         "combined_metrics": {
-          "true_positives": 32,
-          "false_positives": 11,
-          "false_negatives": 6,
-          "true_negatives": 1150,
-          "precision": 0.7441860465116279,
-          "recall": 0.8421052631578947,
-          "false_positive_rate": 0.009474590869939707,
-          "total_flagged": 43,
+          "true_positives": 20,
+          "false_positives": 14,
+          "false_negatives": 18,
+          "true_negatives": 1147,
+          "precision": 0.5882352941176471,
+          "recall": 0.5263157894736842,
+          "false_positive_rate": 0.012058570198105082,
+          "total_flagged": 34,
           "total_evaluated": 1199
         },
         "fraud_missed_by_baseline": [
@@ -230,53 +220,216 @@
           "CSC-03644"
         ],
         "fraud_missed_by_candidate": [
+          "CSC-04738",
           "CSC-02787",
           "CSC-01133",
           "CSC-03052",
+          "CSC-04265",
+          "CSC-04828",
           "CSC-05317",
           "CSC-00824",
           "CSC-04892",
           "CSC-00241",
+          "CSC-00147",
+          "CSC-01948",
           "CSC-05993",
           "CSC-03003",
           "CSC-05784",
+          "CSC-00943",
           "CSC-01488",
           "CSC-05621",
           "CSC-04776",
+          "CSC-05670",
+          "CSC-05061",
           "CSC-01462",
           "CSC-01076",
+          "CSC-00435",
           "CSC-04749",
           "CSC-05672",
+          "CSC-00555",
+          "CSC-01845",
           "CSC-05509",
           "CSC-02821",
-          "CSC-05777"
+          "CSC-05777",
+          "CSC-03644"
         ],
         "fraud_missed_by_combined": [
+          "CSC-04738",
           "CSC-02787",
           "CSC-01133",
+          "CSC-04265",
+          "CSC-04828",
           "CSC-05317",
           "CSC-00824",
           "CSC-00241",
-          "CSC-02821"
+          "CSC-00147",
+          "CSC-01948",
+          "CSC-00943",
+          "CSC-05670",
+          "CSC-05061",
+          "CSC-00435",
+          "CSC-00555",
+          "CSC-01845",
+          "CSC-02821",
+          "CSC-03644"
         ]
       }
     },
     {
       "rule": {
-        "rule_id": "AGT-d382f14c-2",
-        "name": "Low-amount CNP with high 1h velocity",
-        "description": "Agent-proposed candidate from investigation d382f14cbf67414f957db7e21bb82177.",
-        "rationale": "Detects automated card testing in e-commerce using small-dollar transactions with rapid repeated attempts on the card in a short time frame (transactions_1h >= 3).",
+        "rule_id": "AGT-a5193d19-2",
+        "name": "Rapid low amount transactions",
+        "description": "Agent-proposed candidate from investigation a5193d19d950416f876f0720bdf0b6c6.",
+        "rationale": "Detects rapid succession of low-dollar transactions characteristic of automated card testing.",
         "conditions": [
           {
-            "field": "card_present",
-            "operator": "equals",
-            "value": 0.0
+            "field": "transactions_1h",
+            "operator": "greater_than_or_equal",
+            "value": 4.0
           },
           {
             "field": "amount",
-            "operator": "less_than_or_equal",
-            "value": 30.0
+            "operator": "less_than",
+            "value": 10.0
+          }
+        ],
+        "logical_operator": "and",
+        "status": "draft",
+        "version": 1,
+        "created_at": "2026-10-14T09:42:02.817347Z",
+        "created_by": "rulepilot-agent"
+      },
+      "validation": {
+        "evaluated_split": "validation",
+        "seed": 41,
+        "baseline_metrics": {
+          "true_positives": 14,
+          "false_positives": 4,
+          "false_negatives": 24,
+          "true_negatives": 1157,
+          "precision": 0.7777777777777778,
+          "recall": 0.3684210526315789,
+          "false_positive_rate": 0.0034453057708871662,
+          "total_flagged": 18,
+          "total_evaluated": 1199
+        },
+        "candidate_metrics": {
+          "true_positives": 5,
+          "false_positives": 8,
+          "false_negatives": 33,
+          "true_negatives": 1153,
+          "precision": 0.38461538461538464,
+          "recall": 0.13157894736842105,
+          "false_positive_rate": 0.0068906115417743325,
+          "total_flagged": 13,
+          "total_evaluated": 1199
+        },
+        "combined_metrics": {
+          "true_positives": 19,
+          "false_positives": 12,
+          "false_negatives": 19,
+          "true_negatives": 1149,
+          "precision": 0.6129032258064516,
+          "recall": 0.5,
+          "false_positive_rate": 0.0103359173126615,
+          "total_flagged": 31,
+          "total_evaluated": 1199
+        },
+        "fraud_missed_by_baseline": [
+          "CSC-04738",
+          "CSC-02787",
+          "CSC-01133",
+          "CSC-04265",
+          "CSC-04828",
+          "CSC-05317",
+          "CSC-00824",
+          "CSC-00241",
+          "CSC-04844",
+          "CSC-00147",
+          "CSC-01948",
+          "CSC-02469",
+          "CSC-00943",
+          "CSC-02240",
+          "CSC-05670",
+          "CSC-05061",
+          "CSC-04548",
+          "CSC-00435",
+          "CSC-05595",
+          "CSC-03408",
+          "CSC-00555",
+          "CSC-01845",
+          "CSC-02821",
+          "CSC-03644"
+        ],
+        "fraud_missed_by_candidate": [
+          "CSC-04738",
+          "CSC-03052",
+          "CSC-04265",
+          "CSC-04828",
+          "CSC-05317",
+          "CSC-00824",
+          "CSC-04892",
+          "CSC-00241",
+          "CSC-00147",
+          "CSC-01948",
+          "CSC-05993",
+          "CSC-03003",
+          "CSC-05784",
+          "CSC-00943",
+          "CSC-01488",
+          "CSC-05621",
+          "CSC-04776",
+          "CSC-05670",
+          "CSC-05061",
+          "CSC-01462",
+          "CSC-01076",
+          "CSC-04548",
+          "CSC-00435",
+          "CSC-04749",
+          "CSC-05595",
+          "CSC-03408",
+          "CSC-05672",
+          "CSC-00555",
+          "CSC-01845",
+          "CSC-05509",
+          "CSC-02821",
+          "CSC-05777",
+          "CSC-03644"
+        ],
+        "fraud_missed_by_combined": [
+          "CSC-04738",
+          "CSC-04265",
+          "CSC-04828",
+          "CSC-05317",
+          "CSC-00824",
+          "CSC-00241",
+          "CSC-00147",
+          "CSC-01948",
+          "CSC-00943",
+          "CSC-05670",
+          "CSC-05061",
+          "CSC-04548",
+          "CSC-00435",
+          "CSC-05595",
+          "CSC-03408",
+          "CSC-00555",
+          "CSC-01845",
+          "CSC-02821",
+          "CSC-03644"
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rule_id": "AGT-a5193d19-3",
+        "name": "Card testing frequency and declines",
+        "description": "Agent-proposed candidate from investigation a5193d19d950416f876f0720bdf0b6c6.",
+        "rationale": "Identifies cards undergoing multiple recent transactions combined with prior declined attempts.",
+        "conditions": [
+          {
+            "field": "declined_attempts_24h",
+            "operator": "greater_than_or_equal",
+            "value": 3.0
           },
           {
             "field": "transactions_1h",
@@ -287,7 +440,7 @@
         "logical_operator": "and",
         "status": "draft",
         "version": 1,
-        "created_at": "2026-10-14T09:16:03.806335Z",
+        "created_at": "2026-10-14T09:42:04.059194Z",
         "created_by": "rulepilot-agent"
       },
       "validation": {
@@ -305,25 +458,25 @@
           "total_evaluated": 1199
         },
         "candidate_metrics": {
-          "true_positives": 18,
-          "false_positives": 5,
-          "false_negatives": 20,
-          "true_negatives": 1156,
-          "precision": 0.782608695652174,
-          "recall": 0.47368421052631576,
-          "false_positive_rate": 0.004306632213608958,
-          "total_flagged": 23,
+          "true_positives": 15,
+          "false_positives": 2,
+          "false_negatives": 23,
+          "true_negatives": 1159,
+          "precision": 0.8823529411764706,
+          "recall": 0.39473684210526316,
+          "false_positive_rate": 0.0017226528854435831,
+          "total_flagged": 17,
           "total_evaluated": 1199
         },
         "combined_metrics": {
-          "true_positives": 32,
-          "false_positives": 9,
-          "false_negatives": 6,
-          "true_negatives": 1152,
-          "precision": 0.7804878048780488,
-          "recall": 0.8421052631578947,
-          "false_positive_rate": 0.007751937984496124,
-          "total_flagged": 41,
+          "true_positives": 29,
+          "false_positives": 6,
+          "false_negatives": 9,
+          "true_negatives": 1155,
+          "precision": 0.8285714285714286,
+          "recall": 0.7631578947368421,
+          "false_positive_rate": 0.00516795865633075,
+          "total_flagged": 35,
           "total_evaluated": 1199
         },
         "fraud_missed_by_baseline": [
@@ -354,6 +507,8 @@
         ],
         "fraud_missed_by_candidate": [
           "CSC-04738",
+          "CSC-02787",
+          "CSC-01133",
           "CSC-03052",
           "CSC-05317",
           "CSC-00824",
@@ -372,153 +527,33 @@
           "CSC-05672",
           "CSC-05509",
           "CSC-02821",
-          "CSC-05777"
+          "CSC-05777",
+          "CSC-03644"
         ],
         "fraud_missed_by_combined": [
-          "CSC-04738",
-          "CSC-05317",
-          "CSC-00824",
-          "CSC-00241",
-          "CSC-04548",
-          "CSC-02821"
-        ]
-      }
-    },
-    {
-      "rule": {
-        "rule_id": "AGT-d382f14c-3",
-        "name": "Low-amount rapid testing with prior declines",
-        "description": "Agent-proposed candidate from investigation d382f14cbf67414f957db7e21bb82177.",
-        "rationale": "Combines low-dollar transaction amount with rapid retry velocity (transactions_1h >= 2) and prior failed attempts (declined_attempts_24h >= 1), reflecting automated card testing and retry behavior described in the advisory.",
-        "conditions": [
-          {
-            "field": "amount",
-            "operator": "less_than_or_equal",
-            "value": 30.0
-          },
-          {
-            "field": "declined_attempts_24h",
-            "operator": "greater_than_or_equal",
-            "value": 1.0
-          },
-          {
-            "field": "transactions_1h",
-            "operator": "greater_than_or_equal",
-            "value": 2.0
-          }
-        ],
-        "logical_operator": "and",
-        "status": "draft",
-        "version": 1,
-        "created_at": "2026-10-14T09:16:13.846017Z",
-        "created_by": "rulepilot-agent"
-      },
-      "validation": {
-        "evaluated_split": "validation",
-        "seed": 41,
-        "baseline_metrics": {
-          "true_positives": 14,
-          "false_positives": 4,
-          "false_negatives": 24,
-          "true_negatives": 1157,
-          "precision": 0.7777777777777778,
-          "recall": 0.3684210526315789,
-          "false_positive_rate": 0.0034453057708871662,
-          "total_flagged": 18,
-          "total_evaluated": 1199
-        },
-        "candidate_metrics": {
-          "true_positives": 20,
-          "false_positives": 17,
-          "false_negatives": 18,
-          "true_negatives": 1144,
-          "precision": 0.5405405405405406,
-          "recall": 0.5263157894736842,
-          "false_positive_rate": 0.014642549526270457,
-          "total_flagged": 37,
-          "total_evaluated": 1199
-        },
-        "combined_metrics": {
-          "true_positives": 34,
-          "false_positives": 21,
-          "false_negatives": 4,
-          "true_negatives": 1140,
-          "precision": 0.6181818181818182,
-          "recall": 0.8947368421052632,
-          "false_positive_rate": 0.01808785529715762,
-          "total_flagged": 55,
-          "total_evaluated": 1199
-        },
-        "fraud_missed_by_baseline": [
           "CSC-04738",
           "CSC-02787",
           "CSC-01133",
-          "CSC-04265",
-          "CSC-04828",
           "CSC-05317",
           "CSC-00824",
           "CSC-00241",
-          "CSC-04844",
-          "CSC-00147",
-          "CSC-01948",
-          "CSC-02469",
-          "CSC-00943",
-          "CSC-02240",
-          "CSC-05670",
-          "CSC-05061",
           "CSC-04548",
-          "CSC-00435",
-          "CSC-05595",
-          "CSC-03408",
-          "CSC-00555",
-          "CSC-01845",
           "CSC-02821",
           "CSC-03644"
-        ],
-        "fraud_missed_by_candidate": [
-          "CSC-03052",
-          "CSC-05317",
-          "CSC-00824",
-          "CSC-04892",
-          "CSC-00241",
-          "CSC-05993",
-          "CSC-03003",
-          "CSC-05784",
-          "CSC-01488",
-          "CSC-05621",
-          "CSC-04776",
-          "CSC-01462",
-          "CSC-01076",
-          "CSC-04749",
-          "CSC-05672",
-          "CSC-05509",
-          "CSC-02821",
-          "CSC-05777"
-        ],
-        "fraud_missed_by_combined": [
-          "CSC-05317",
-          "CSC-00824",
-          "CSC-00241",
-          "CSC-02821"
         ]
       }
     }
   ],
   "selected_rule": {
-    "rule_id": "AGT-d382f14c-2",
-    "name": "Low-amount CNP with high 1h velocity",
-    "description": "Agent-proposed candidate from investigation d382f14cbf67414f957db7e21bb82177.",
-    "rationale": "Detects automated card testing in e-commerce using small-dollar transactions with rapid repeated attempts on the card in a short time frame (transactions_1h >= 3).",
+    "rule_id": "AGT-a5193d19-3",
+    "name": "Card testing frequency and declines",
+    "description": "Agent-proposed candidate from investigation a5193d19d950416f876f0720bdf0b6c6.",
+    "rationale": "Identifies cards undergoing multiple recent transactions combined with prior declined attempts.",
     "conditions": [
       {
-        "field": "card_present",
-        "operator": "equals",
-        "value": 0.0
-      },
-      {
-        "field": "amount",
-        "operator": "less_than_or_equal",
-        "value": 30.0
+        "field": "declined_attempts_24h",
+        "operator": "greater_than_or_equal",
+        "value": 3.0
       },
       {
         "field": "transactions_1h",
@@ -529,7 +564,7 @@
     "logical_operator": "and",
     "status": "draft",
     "version": 1,
-    "created_at": "2026-10-14T09:16:03.806335Z",
+    "created_at": "2026-10-14T09:42:04.059194Z",
     "created_by": "rulepilot-agent"
   },
   "baseline_rule": {
@@ -547,9 +582,30 @@
     "logical_operator": "and",
     "status": "approved",
     "version": 1,
-    "created_at": "2026-10-14T09:15:12.038218Z",
+    "created_at": "2026-10-14T09:41:35.223484Z",
     "created_by": "rulepilot-baseline"
   },
+  "reference_rules": [
+    {
+      "rule_id": "RP-BASELINE-001",
+      "name": "High transaction amount baseline",
+      "description": "Flags a transaction when its amount is at least 1,500 synthetic currency units.",
+      "rationale": "A simple, documented starting point for comparing candidate rules. The threshold is illustrative and is not calibrated for real financial data.",
+      "conditions": [
+        {
+          "field": "amount",
+          "operator": "greater_than_or_equal",
+          "value": 1500
+        }
+      ],
+      "logical_operator": "and",
+      "status": "approved",
+      "version": 1,
+      "created_at": "2026-10-14T09:41:35.223484Z",
+      "created_by": "rulepilot-baseline"
+    }
+  ],
+  "review_history_used": 0,
   "holdout": {
     "evaluated_split": "test",
     "seed": 41,
@@ -565,25 +621,25 @@
       "total_evaluated": 1202
     },
     "candidate_metrics": {
-      "true_positives": 20,
-      "false_positives": 6,
-      "false_negatives": 19,
-      "true_negatives": 1157,
-      "precision": 0.7692307692307693,
-      "recall": 0.5128205128205128,
-      "false_positive_rate": 0.005159071367153913,
-      "total_flagged": 26,
+      "true_positives": 16,
+      "false_positives": 3,
+      "false_negatives": 23,
+      "true_negatives": 1160,
+      "precision": 0.8421052631578947,
+      "recall": 0.41025641025641024,
+      "false_positive_rate": 0.0025795356835769563,
+      "total_flagged": 19,
       "total_evaluated": 1202
     },
     "combined_metrics": {
-      "true_positives": 35,
-      "false_positives": 14,
-      "false_negatives": 4,
-      "true_negatives": 1149,
-      "precision": 0.7142857142857143,
-      "recall": 0.8974358974358975,
-      "false_positive_rate": 0.012037833190025795,
-      "total_flagged": 49,
+      "true_positives": 31,
+      "false_positives": 11,
+      "false_negatives": 8,
+      "true_negatives": 1152,
+      "precision": 0.7380952380952381,
+      "recall": 0.7948717948717948,
+      "false_positive_rate": 0.009458297506448839,
+      "total_flagged": 42,
       "total_evaluated": 1202
     },
     "fraud_missed_by_baseline": [
@@ -615,6 +671,7 @@
     "fraud_missed_by_candidate": [
       "CSC-01958",
       "CSC-05034",
+      "CSC-01851",
       "CSC-04447",
       "CSC-00704",
       "CSC-02174",
@@ -623,9 +680,12 @@
       "CSC-01218",
       "CSC-05018",
       "CSC-00590",
+      "CSC-01974",
+      "CSC-04039",
       "CSC-01191",
       "CSC-04906",
       "CSC-00525",
+      "CSC-05234",
       "CSC-03393",
       "CSC-01110",
       "CSC-01681",
@@ -635,17 +695,21 @@
     ],
     "fraud_missed_by_combined": [
       "CSC-01958",
+      "CSC-01851",
       "CSC-05018",
+      "CSC-01974",
+      "CSC-04039",
+      "CSC-05234",
       "CSC-01681",
       "CSC-00345"
     ]
   },
   "holdout_delta": {
-    "recall_change": 0.5128205128205128,
-    "precision_change": 0.06211180124223603,
-    "false_positive_rate_change": 0.005159071367153912,
-    "alert_change": 26,
-    "fraud_newly_detected": 20
+    "recall_change": 0.4102564102564102,
+    "precision_change": 0.08592132505175987,
+    "false_positive_rate_change": 0.0025795356835769554,
+    "alert_change": 19,
+    "fraud_newly_detected": 16
   },
   "guardrails": [
     {
@@ -666,7 +730,7 @@
     {
       "check": "Evidence quotes verified",
       "passed": true,
-      "detail": "5 of 5 quotes found verbatim in the source text."
+      "detail": "4 of 4 quotes found verbatim in the source text."
     },
     {
       "check": "Agent coverage claim matches data",
@@ -694,72 +758,90 @@
     },
     {
       "step": 2,
+      "tool": "get_review_history",
+      "arguments": {},
+      "ok": true,
+      "summary": "0 prior human decision(s) returned as data"
+    },
+    {
+      "step": 3,
       "tool": "check_field_coverage",
       "arguments": {
         "required_fields": [
           "amount",
-          "card_present",
           "declined_attempts_24h",
           "transactions_1h",
           "ip_address",
-          "device_id",
-          "decline_reason"
+          "device_id"
         ]
       },
       "ok": true,
-      "summary": "Coverage partially_testable; missing: ip_address, device_id, decline_reason"
+      "summary": "Coverage partially_testable; missing: ip_address, device_id"
     },
     {
-      "step": 3,
+      "step": 4,
       "tool": "get_training_profile",
       "arguments": {},
       "ok": true,
       "summary": "Training split profile: 3599 records, 114 fraud"
     },
     {
-      "step": 4,
+      "step": 5,
       "tool": "evaluate_candidate_rule",
       "arguments": {
-        "name": "Low-amount CNP with prior declines",
-        "rationale": "Detects card testing attacks targeting e-commerce (card_present=0) using low-dollar amounts (amount<=30) following multiple failed authorization attempts (declined_attempts_24h>=2).",
+        "name": "Low amount with prior declines",
+        "rationale": "Captures small-dollar card testing attempts following prior declined attempts.",
         "conditions": [
-          {
-            "field": "card_present",
-            "operator": "equals",
-            "value": 0.0
-          },
-          {
-            "field": "amount",
-            "operator": "less_than_or_equal",
-            "value": 30.0
-          },
           {
             "field": "declined_attempts_24h",
             "operator": "greater_than_or_equal",
             "value": 2.0
+          },
+          {
+            "field": "amount",
+            "operator": "less_than",
+            "value": 10.0
           }
         ],
         "logical_operator": "and"
       },
       "ok": true,
-      "summary": "AGT-d382f14c-1 on validation: candidate recall 47%, rule-set recall 37% -> 84%, FPR 0.34% -> 0.95%"
+      "summary": "AGT-a5193d19-1 on validation: candidate recall 16%, rule-set recall 37% -> 53%, FPR 0.34% -> 1.21%"
     },
     {
-      "step": 5,
+      "step": 6,
       "tool": "evaluate_candidate_rule",
       "arguments": {
-        "name": "Low-amount CNP with high 1h velocity",
-        "rationale": "Detects automated card testing in e-commerce using small-dollar transactions with rapid repeated attempts on the card in a short time frame (transactions_1h >= 3).",
+        "name": "Rapid low amount transactions",
+        "rationale": "Detects rapid succession of low-dollar transactions characteristic of automated card testing.",
         "conditions": [
           {
-            "field": "card_present",
-            "operator": "equals",
-            "value": 0.0
+            "field": "transactions_1h",
+            "operator": "greater_than_or_equal",
+            "value": 4.0
           },
           {
             "field": "amount",
-            "operator": "less_than_or_equal",
-            "value": 30.0
+            "operator": "less_than",
+            "value": 10.0
+          }
+        ],
+        "logical_operator": "and"
+      },
+      "ok": true,
+      "summary": "AGT-a5193d19-2 on validation: candidate recall 13%, rule-set recall 37% -> 50%, FPR 0.34% -> 1.03%"
+    },
+    {
+      "step": 7,
+      "tool": "evaluate_candidate_rule",
+      "arguments": {
+        "name": "Card testing frequency and declines",
+        "rationale": "Identifies cards undergoing multiple recent transactions combined with prior declined attempts.",
+        "conditions": [
+          {
+            "field": "declined_attempts_24h",
+            "operator": "greater_than_or_equal",
+            "value": 3.0
           },
           {
             "field": "transactions_1h",
@@ -770,90 +852,56 @@
         "logical_operator": "and"
       },
       "ok": true,
-      "summary": "AGT-d382f14c-2 on validation: candidate recall 47%, rule-set recall 37% -> 84%, FPR 0.34% -> 0.78%"
+      "summary": "AGT-a5193d19-3 on validation: candidate recall 39%, rule-set recall 37% -> 76%, FPR 0.34% -> 0.52%"
     },
     {
-      "step": 6,
-      "tool": "evaluate_candidate_rule",
-      "arguments": {
-        "name": "Low-amount rapid testing with prior declines",
-        "rationale": "Combines low-dollar transaction amount with rapid retry velocity (transactions_1h >= 2) and prior failed attempts (declined_attempts_24h >= 1), reflecting automated card testing and retry behavior described in the advisory.",
-        "conditions": [
-          {
-            "field": "amount",
-            "operator": "less_than_or_equal",
-            "value": 30.0
-          },
-          {
-            "field": "declined_attempts_24h",
-            "operator": "greater_than_or_equal",
-            "value": 1.0
-          },
-          {
-            "field": "transactions_1h",
-            "operator": "greater_than_or_equal",
-            "value": 2.0
-          }
-        ],
-        "logical_operator": "and"
-      },
-      "ok": true,
-      "summary": "AGT-d382f14c-3 on validation: candidate recall 53%, rule-set recall 37% -> 89%, FPR 0.34% -> 1.81%"
-    },
-    {
-      "step": 7,
+      "step": 8,
       "tool": "submit_findings",
       "arguments": {
         "findings": {
-          "technique_name": "Card Testing",
-          "summary": "Card testing involves fraudsters validating stolen card credentials through automated $0 or low-dollar authorization attempts on e-commerce and mobile checkout platforms, often cycling CVV or expiration dates and generating high velocity or elevated decline rates.",
+          "technique_name": "Card Testing Attack",
+          "summary": "The advisory details card testing attacks where fraudsters execute automated low-dollar transactions and small-amount authorizations alongside repeated failed attempts to validate stolen card details.",
           "behaviors": [
-            "Fraudsters validate stolen card details using $0 or low-dollar transactions to confirm the card is active.",
-            "Card testing attacks increasingly target e-commerce and mobile checkout channels.",
-            "Fraudsters rapidly retry transactions on cards, cycling missing details such as CVV or expiration dates.",
-            "Automated testing scripts execute rapid attempts across single or multiple cards from the same device, IP, or session."
+            "Fraudsters attempt to validate stolen card details by making $0 or low-dollar transactions",
+            "Automated testing running many different card numbers in a short time from the same IP address, device, or session",
+            "More failed payments than usual, including repeated CVV or expiration date mismatch errors",
+            "Multiple attempts on the same card or session where only one field changes each time"
           ],
           "indicators": [
-            "Low-dollar or $0 authorization attempts (synthetic amount <= 30).",
-            "Card-not-present / e-commerce or mobile transactions (card_present = 0).",
-            "Elevated short-term transaction velocity on the card (transactions_1h >= 3).",
-            "Repeated authorization declines in the preceding 24 hours (declined_attempts_24h >= 2).",
-            "Multiple failed authorization responses specifically indicating CVV or expiry mismatch errors."
+            "$0 or small-dollar attempts at real merchants",
+            "High volume of failed payments and mismatch errors",
+            "Rapid transaction velocity in a short time frame"
           ],
           "required_fields": [
             "amount",
-            "card_present",
-            "transactions_1h",
             "declined_attempts_24h",
+            "transactions_1h",
             "ip_address",
-            "device_id",
-            "decline_reason"
+            "device_id"
           ],
           "testable_hypotheses": [
-            "Low-dollar card-not-present transactions with high hourly velocity are significantly more likely to be card testing fraud than legitimate traffic.",
-            "Low-dollar card-not-present transactions preceded by multiple declines within 24 hours indicate credential trial-and-error testing."
+            "Cards with high transaction velocity within 1 hour and multiple declined attempts in 24 hours exhibit card testing behavior.",
+            "Low-dollar transactions combined with prior declined attempts identify card validation attempts."
           ],
           "uncertainties": [
-            "The dataset is synthetic, and card-testing patterns were injected rather than observed in live merchant traffic.",
-            "Advisory details regarding IP, device, and specific decline reasons (CVV/expiration mismatches) cannot be directly verified due to missing fields."
+            "Advisory references IP addresses and device IDs which are absent from the transaction dataset schema.",
+            "Simulated merchant gateway error codes for CVV/expiration mismatches are represented via aggregated decline counters."
           ],
           "evidence_quotes": [
             "Card testing is when fraudsters attempt to validate stolen card details by making $0 or low-dollar transactions.",
-            "Fraud tactics are evolving, and card testing attacks are increasingly targeting e-commerce and mobile checkout.",
-            "They run $0 or small-dollar attempts at real merchants to confirm a card is active and may retry to fill in missing details (like CVV or expiration date).",
-            "Many different card numbers attempted in a short time—often from the same IP address, device or small set of sessions.",
-            "More failed payments than usual, including repeated CVV or expiration date mismatch errors."
+            "Many different card numbers attempted in a short time\u2014often from the same IP address, device or small set of sessions.",
+            "More failed payments than usual, including repeated CVV or expiration date mismatch errors.",
+            "Multiple attempts on the same card or session where only one field changes each time (for example, cycling CVV or expiration date values)."
           ]
         },
         "conclusion": {
           "coverage_assessment": "gap_identified",
-          "selected_candidate_rule_id": "AGT-d382f14c-2",
+          "selected_candidate_rule_id": "AGT-a5193d19-3",
           "recommendation": "recommend_for_review",
-          "rationale": "The existing baseline rule (RP-BASELINE-001) only targets high transaction amounts (>= 1,500), leaving a critical detection gap for card testing, which specifically uses low-dollar authorizations. Candidate AGT-d382f14c-2 closes this gap by detecting card-not-present transactions (card_present = 0) with low amounts (amount <= 30) and high hourly attempt velocity (transactions_1h >= 3). On validation data, combining this candidate with the baseline increases recall from 36.84% to 84.21% (+47.37 percentage points) while maintaining 78.05% precision and a low false positive rate (0.78%).",
+          "rationale": "The advisory highlights card testing via small-dollar transactions, rapid velocity, and high failure/decline rates. While IP address and device ID are unavailable, the rule combining declined_attempts_24h and transactions_1h successfully bridges the coverage gap on the validation split, improving recall from 36.8% to 76.3% with minimal increase in false positives.",
           "limitations": [
-            "The dataset is fully synthetic and results do not measure real-world detection performance.",
-            "Key advisory indicators such as IP address, device ID, session ID, and specific error codes (CVV/expiration mismatch) are absent from the dataset.",
-            "Cross-card testing patterns across multiple cards at the same merchant or IP cannot be evaluated with card-level transaction records alone."
+            "IP address and device ID fields are not available in the dataset schema.",
+            "Synthetic dataset cannot capture real-world merchant gateway error codes or exact field-cycling patterns."
           ]
         }
       },
@@ -865,8 +913,7 @@
     "Fully synthetic. The card-testing pattern was injected to demonstrate how the workflow surfaces a coverage gap; results do not measure real-world detection.",
     "Public intelligence describes techniques; it is not transaction ground truth.",
     "Metrics come from a 1202-record synthetic held-out split and are not real-world detection rates.",
-    "The dataset is fully synthetic and results do not measure real-world detection performance.",
-    "Key advisory indicators such as IP address, device ID, session ID, and specific error codes (CVV/expiration mismatch) are absent from the dataset.",
-    "Cross-card testing patterns across multiple cards at the same merchant or IP cannot be evaluated with card-level transaction records alone."
+    "IP address and device ID fields are not available in the dataset schema.",
+    "Synthetic dataset cannot capture real-world merchant gateway error codes or exact field-cycling patterns."
   ]
 }

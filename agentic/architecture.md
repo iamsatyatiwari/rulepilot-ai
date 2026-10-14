@@ -7,7 +7,7 @@
 | Intelligence | Curated or pasted advisories, hashing, quote verification | `backend/app/intel/` |
 | Agent orchestration | One ADK agent, prompt, retries and fallback, deterministic post-checks | `backend/app/agent/` |
 | Deterministic engine | Rule schema, evaluation, metrics, datasets, splits, discovery, backtests | `backend/app/rules/`, `evaluation.py`, `data.py`, `datasets.py`, `discovery.py`, `backtest.py` |
-| Governance | Investigation store, review decisions, audit log | `backend/app/governance.py` |
+| Governance | Investigation store, review decisions, reviewed rule catalog, review history, audit log | `backend/app/governance.py`, `backend/app/storage.py` |
 | HTTP | Versioned API, static dashboard in production | `backend/app/main.py`, `api.py`, `investigations_api.py` |
 | UI | Investigations workspace and rule-engine view | `frontend/src/` |
 
@@ -26,7 +26,8 @@ sequenceDiagram
     UI->>API: POST /api/v1/investigations
     API->>O: run_investigation(advisory, dataset, seed)
     O->>A: delimited advisory + instructions
-    A->>T: get_rule_catalog / check_field_coverage / get_training_profile
+    O->>G: approved rules + review history
+    A->>T: get_rule_catalog / get_review_history / check_field_coverage / get_training_profile
     A->>T: evaluate_candidate_rule (≤3, validation only)
     T->>E: validate rule, compute metrics
     A->>T: submit_findings
@@ -36,6 +37,7 @@ sequenceDiagram
     API->>G: store + audit "investigation_completed"
     UI->>API: POST /investigations/{id}/review
     API->>G: record decision + audit "review_recorded"
+    G->>G: approve adds rule to catalog (inactive); reject or changes removes it
 ```
 
 ## Backend module map
@@ -57,7 +59,8 @@ sequenceDiagram
 | `intel/advisories.py` | `Advisory`, loader, `verify_quotes` |
 | `intel/advisories/*.json` | Curated sources |
 | `intel/recorded/*.json` | Real past runs shown as "recorded" |
-| `governance.py` | `GovernanceStore`, `ReviewRequest`, `ReviewRecord`, `AuditEvent` |
+| `governance.py` | `GovernanceStore` (investigations, reviews, `catalog()`, `approved_rules()`, `review_history()`, audit) |
+| `storage.py` | `DocumentBackend`: `LocalJsonBackend` and `FirestoreBackend` (records stored as JSON strings) |
 | `config.py` | Environment settings; loads `backend/.env` |
 
 ## API reference (`/api/v1`)
@@ -76,6 +79,7 @@ sequenceDiagram
 | GET | `/investigations` | Summaries, newest first |
 | GET | `/investigations/{id}` | Report and reviews |
 | POST | `/investigations/{id}/review` | `{decision, reviewer, comment}` |
+| GET | `/rule-catalog` | Active baseline + approved (not active) rules with provenance |
 | GET | `/audit` | Audit events, optional `investigation_id` |
 
 `/health` is outside the prefix. Interactive docs: `http://127.0.0.1:8000/docs`.
@@ -93,10 +97,22 @@ Status codes used by investigations: 404 unknown advisory, 409 nothing to review
 | `RULEPILOT_AGENT_MAX_LLM_CALLS` | `12` | Per attempt (3–25) |
 | `RULEPILOT_AGENT_TIMEOUT_SECONDS` | `120` | Whole run (10–300) |
 | `RULEPILOT_CORS_ORIGINS` | localhost:5173 | Split local mode only |
+| `RULEPILOT_STORE` | `local` | `local` JSON files or `firestore` |
+| `GOOGLE_CLOUD_PROJECT` | — | Firestore project (with `RULEPILOT_STORE=firestore`) |
 | `RULEPILOT_DATA_DIR` | `backend/.rulepilot_data` | Local store and audit log |
 | `RULEPILOT_STATIC_DIR` | unset | Built dashboard path; set in Docker |
 
 Frontend: `VITE_API_BASE_URL` (dev default `http://localhost:8000`; production builds use the same origin).
+
+## Continuous learning (governed)
+
+The model is never retrained. The *system* learns through reviewed state:
+
+1. A reviewer approves a candidate → it is stored in the rule catalog as `approved`, `activation: not_activated`.
+2. The next investigation compares candidates against the **reference rule set** = baseline OR every approved rule (`compare_records(..., reference_rules)`), and coverage lists their fields.
+3. `get_review_history` gives the agent the last 10 decisions (decision, comment ≤ 300 chars, conditions, held-out deltas) as untrusted data.
+4. If existing rules already detect the behaviour, the agent concludes `covered_by_existing_rules` and proposes nothing.
+5. A later reject or request-changes decision removes the rule from the catalog. Every step is audited.
 
 ## Deployment shape
 

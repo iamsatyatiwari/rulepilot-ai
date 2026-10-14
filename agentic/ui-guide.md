@@ -20,6 +20,7 @@ Source files: `frontend/src/App.tsx` (shell), `InvestigationView.tsx`, `RuleEngi
 5. In **Human review**, enter your name and a comment, then click **Approve for further testing**. The decision appears in the review history with *activation: not activated*.
 6. Click **Investigate** on the *SIM Swap* advisory. The banner reports **Not testable with available data** and no rule is proposed — the system does not invent a link.
 7. Use the **History** strip to switch between runs.
+8. **Learning loop:** after approving in step 5, the **Reviewed rule catalog** lists the rule as *Approved · not active*. Investigate the card-testing advisory again: the banner reports **Covered by existing rules** because the approved rule is now part of the rule set.
 
 If Gemini is busy or not configured, open the **recorded** runs in History; they are real earlier runs.
 
@@ -71,28 +72,39 @@ The pasted text is treated as untrusted data. Instructions hidden inside it are 
 
 **Errors** — shown in a red inline box, e.g. "An investigation is already running" (429) or "The Gemini agent is not configured" (503).
 
-### 3.3 History strip
+### 3.3 Reviewed rule catalog (learning loop)
 
-Buttons for the 8 most recent investigations. The coloured dot is the status (amber = pending review, blue = not testable, grey = insufficient evidence, red = agent incomplete). `recorded` marks saved demo runs. Click to open.
+Lists the rules every new investigation is compared against (`GET /api/v1/rule-catalog`):
 
-### 3.4 Report
+| Badge | Meaning |
+| --- | --- |
+| *Active baseline* | `RP-BASELINE-001`, the only active rule |
+| *Approved · not active* | A candidate a human approved; shows conditions, approver, time, source advisory, and the review comment |
+
+Approving a candidate adds it here; a later reject or request-changes removes it. The agent also receives recent review decisions through its `get_review_history` tool, so reviewer tolerances (e.g. "keep FPR under 1%") inform future proposals.
+
+### 3.4 History strip
+
+Buttons for the 8 most recent investigations. The coloured dot is the status (amber = pending review, blue = not testable, grey = insufficient evidence, red = agent incomplete). `recorded` marks saved demo runs. Click to open. Green dot = covered by existing rules.
+
+### 3.5 Report
 
 | Section | What it shows | How to read it |
 | --- | --- | --- |
-| **Result banner** | Status pill, deterministic headline, advisory, dataset version, seed, Live/Recorded badge, time, model, model-call count | The headline is written by code, not by the model. |
+| **Result banner** | Status pill, deterministic headline, advisory, dataset version, seed, number of reviewed rules compared against, prior reviews available, Live/Recorded badge, time, model, model-call count | The headline is written by code, not by the model. Statuses: pending human review, covered by existing rules, not testable, insufficient evidence, agent incomplete. |
 | **Pipeline** | Six steps: Source, Findings, Coverage, Candidates, Held-out test, Human review | Green = done, grey = skipped, red = failed, amber = waiting for you. |
 | **Intelligence source** | URL, published and retrieved dates, SHA-256 of the stored text | The hash ties the result to the exact text the agent read. |
 | **Evidence quotes** | Quotes the agent cited | ✅ *Verified in source* = found verbatim by code. ⚠ *Not found in source* = the model paraphrased or invented it; treat the finding with caution. |
 | **Structured findings** | Technique, summary, behaviors, indicators, testable hypotheses, uncertainties | Extracted by Gemini; reviewers should read the uncertainties. |
 | **Coverage-gap analysis** | Status badge; chips for required & available (green), required but missing (red), fields the existing rule checks (grey); agent assessment | Status is computed by code from the field lists. |
 | **Candidate rules · validation** | Each candidate's conditions; candidate recall; rule-set recall, false-positive rate (FPR), and alerts as *baseline → baseline + candidate* | **Selected** marks the agent's choice. All numbers are from the validation split. |
-| **Held-out test** | Delta strip (recall, precision, FPR, additional fraud detected, alert volume) and two metric columns: existing rule set vs existing + candidate | Evaluated once by the orchestrator on records the agent never saw. Green = favourable, red = cost. |
+| **Held-out test** | Delta strip (recall, precision, FPR, additional fraud detected, alert volume) and two metric columns: existing reviewed rule set vs existing set + candidate | Evaluated once by the orchestrator on records the agent never saw. Green = favourable, red = cost. |
 | **Agent trace** | Every tool call in order with a one-line summary; model calls, tokens, time limit | Red step numbers are tool calls the engine rejected (e.g. unavailable field). A grey note means the run fell back to another model. |
 | **Guardrails** | Deterministic checks with ✔/✘ and detail | Any ✘ should be discussed in review. |
 | **Human review** | Review history and decision form | See below. |
 | **Limitations** | Dataset, intelligence, and sample-size caveats plus the agent's own | Mention these when presenting. |
 
-### 3.5 Human review panel
+### 3.6 Human review panel
 
 1. Enter **Reviewer** (≤ 100 chars) and **Comment** (≤ 1,000 chars). Both are required.
 2. Choose **Approve for further testing**, **Request changes**, or **Reject**.

@@ -24,20 +24,21 @@ These are product requirements, not style preferences. A change that breaks one 
 12. Candidate rules are always created as `draft` by `rulepilot-agent`.
 13. Human approval is recorded separately and **never activates a rule**. `activation` stays `not_activated`.
 14. The audit log is append-only.
+15. Approved rules enter the reviewed catalog as inactive; a later reject or request-changes removes them. The agent may read the catalog and review history but can never write to either.
 
 ## Honesty
 
-15. Synthetic data is labelled as synthetic everywhere it appears. The injected card-testing pattern is disclosed.
-16. Never claim real-world detection rates, loss prevention, or ROI.
-17. If an advisory cannot be tested with available fields, the system must say so (`not_testable`) rather than map it onto unrelated fields.
+16. Synthetic data is labelled as synthetic everywhere it appears. The injected card-testing pattern is disclosed.
+17. Never claim real-world detection rates, loss prevention, or ROI.
+18. If an advisory cannot be tested with available fields, the system must say so (`not_testable`) rather than map it onto unrelated fields.
 
 ## Secrets and data
 
-18. Credentials live only in `backend/.env` (git-ignored) or Secret Manager. Never in source, fixtures, recordings, docs, logs, or the frontend.
-19. The frontend never calls Gemini directly.
-20. Only include third-party text we have rights to; store short attributed excerpts with the source URL.
+19. Credentials live only in `backend/.env` (git-ignored) or Secret Manager. Never in source, fixtures, recordings, docs, logs, or the frontend.
+20. The frontend never calls Gemini directly.
+21. Only include third-party text we have rights to; store short attributed excerpts with the source URL.
 
 ## Compatibility
 
-21. Existing endpoints and response fields stay backward compatible; add fields, don't rename them.
-22. All existing tests must pass. New behaviour needs tests that do not call Gemini (use a fake agent runner).
+22. Existing endpoints and response fields stay backward compatible; add fields, don't rename them.
+23. All existing tests must pass. New behaviour needs tests that do not call Gemini (use a fake agent runner).

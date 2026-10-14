@@ -37,10 +37,10 @@ First vertical slice: payment-card fraud. Account takeover, scams, and AML are f
 | M1 foundation, M2A rule engine, M2B dashboard | Done, committed |
 | M3 T0–T7 agent, tools, advisories, governance API, investigation UI, local live E2E | Done |
 | M3 T8 Cloud Run deployment | Dockerfile ready; needs GCP project |
-| M4 continuous learning (approved rules in catalog, review feedback tool, Firestore) | In progress |
+| M4 continuous learning: reviewed rule catalog, review-history tool, Firestore storage | Done (L1–L3), verified live |
 | T9 README, deck, 3-minute video | Not started |
 
-Latest verification: 72 backend tests, 9 frontend tests, type check and build passing.
+Latest verification: 82 backend tests, 10 frontend tests, type check and build passing. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
 
 ## Key decisions (do not reverse without a demonstrated need)
 
@@ -57,7 +57,7 @@ Latest verification: 72 backend tests, 9 frontend tests, type check and build pa
 
 - J.P. Morgan advisory text is copyrighted; only ~110 words of attributed excerpts are stored. Replace with a public-domain source if one is found.
 - Gemini free-tier quotas produce 429s; enable billing for the demo.
-- Cloud Run filesystem is ephemeral; local JSON storage resets on restart until Firestore is added.
+- Cloud Run filesystem is ephemeral; set `RULEPILOT_STORE=firestore` in deployment or approvals are lost on restart.
 - No authentication; reviewer names are self-declared.
 - The pre-competition fresh-code rule: commits are dated from Oct 12, 2026.
 
@@ -69,4 +69,5 @@ Latest verification: 72 backend tests, 9 frontend tests, type check and build pa
 | Rule set / combined | Baseline OR candidate — what the institution would run if the candidate were added |
 | Coverage | Whether fields needed by an advisory exist in the dataset: testable, partially testable, not testable |
 | Held-out test | Test split, evaluated once per investigation by the orchestrator |
+| Reviewed rule catalog | Active baseline + human-approved (inactive) rules; every new investigation is compared against all of them |
 | Recorded run | A real past live run saved under `backend/app/intel/recorded/` and shown with a "Recorded run" badge |

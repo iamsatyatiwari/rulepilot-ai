@@ -38,11 +38,21 @@ def _missed(records: Sequence[Transaction], flags: Sequence[bool], labels: Seque
 
 
 def compare_records(
-    candidate: Rule, records: Sequence[Transaction], split: SplitName, seed: int
+    candidate: Rule,
+    records: Sequence[Transaction],
+    split: SplitName,
+    seed: int,
+    reference_rules: Sequence[Rule] = (BASELINE_RULE,),
 ) -> SplitComparison:
-    """Compare baseline, candidate, and the rule set (baseline OR candidate) on given records."""
+    """Compare the reference rule set, the candidate, and reference OR candidate.
+
+    ``baseline_metrics`` describe the reference rule set: the documented baseline
+    plus any human-approved rules, combined with OR.
+    """
     labels = [bool(record.ground_truth_fraud) for record in records]
-    baseline_flags = [evaluate_rule(BASELINE_RULE, record) for record in records]
+    baseline_flags = [
+        any(evaluate_rule(rule, record) for rule in reference_rules) for record in records
+    ]
     candidate_flags = [evaluate_rule(candidate, record) for record in records]
     combined_flags = [b or c for b, c in zip(baseline_flags, candidate_flags)]
     return SplitComparison(

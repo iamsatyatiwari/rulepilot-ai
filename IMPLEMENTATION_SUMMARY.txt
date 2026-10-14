@@ -113,10 +113,29 @@ T8 Deployment preparation
     secrets and local data.
 
 
+MILESTONE 4 — GOVERNED CONTINUOUS LEARNING
+-----------------------------------------
+The model is never retrained; the system learns through reviewed state.
+  * Reviewed rule catalog: approving a candidate stores it as approved and
+    not activated; a later reject or request-changes removes it. Audited as
+    rule_added_to_catalog / rule_removed_from_catalog.
+  * Every new investigation compares candidates against the reference rule
+    set (baseline OR all approved rules); coverage lists their fields.
+  * New agent tool get_review_history: last 10 human decisions (comment
+    truncated to 300 chars) returned as untrusted data.
+  * New status covered_by_existing_rules.
+  * Storage abstraction (app/storage.py): local JSON or Firestore
+    (RULEPILOT_STORE=firestore); records stored as JSON strings.
+  * GET /api/v1/rule-catalog and a Reviewed rule catalog panel in the UI.
+  * Live verification: run 1 proposed AGT-a5193d19-3 (held-out recall
+    +41.0 pp, FPR +0.26 pp) -> approved -> run 2 compared against 2 rules
+    with 1 prior review and returned covered_by_existing_rules.
+
+
 VERIFICATION RESULTS (2026-10-14)
 ---------------------------------
-  * Backend: 72 pytest tests passed (36 at M2B).
-  * Frontend: 9 Vitest tests passed (5 at M2B); tsc and Vite build passed.
+  * Backend: 82 pytest tests passed (36 at M2B).
+  * Frontend: 10 Vitest tests passed (5 at M2B); tsc and Vite build passed.
   * git diff --check passed; secret scan of source, fixtures and recordings
     found no credentials.
   * One dependency deprecation warning (Starlette TestClient/httpx).
@@ -127,9 +146,8 @@ CURRENT LIMITATIONS
   * All transaction data is synthetic; card-scenario-v2 contains an injected
     pattern. Metrics are not real-world detection rates.
   * Public intelligence describes techniques; it is not ground truth.
-  * Local JSON storage is ephemeral on Cloud Run (Firestore planned).
+  * Use RULEPILOT_STORE=firestore on Cloud Run; local JSON is ephemeral there.
   * No authentication; reviewer identity is self-declared.
-  * The agent does not yet learn from review decisions (planned next).
   * Gemini free-tier quotas cause 429s; billing should be enabled for demos.
 
 

@@ -32,6 +32,7 @@ from app.rules.models import Rule
 
 InvestigationStatus = Literal[
     "pending_human_review",
+    "covered_by_existing_rules",
     "insufficient_evidence",
     "not_testable",
     "agent_incomplete",
@@ -99,6 +100,8 @@ class InvestigationReport(BaseModel):
     candidates: list[CandidateEvidence]
     selected_rule: Rule | None
     baseline_rule: Rule
+    reference_rules: list[Rule] = []
+    review_history_used: int = 0
     holdout: SplitComparison | None
     holdout_delta: Delta | None
     guardrails: list[GuardrailCheck]
@@ -133,6 +136,8 @@ def _summarize_result(tool: str, result: dict[str, Any]) -> str:
             f"rule-set recall {baseline['recall']:.0%} -> {combined['recall']:.0%}, "
             f"FPR {baseline['false_positive_rate']:.2%} -> {combined['false_positive_rate']:.2%}"
         )
+    if tool == "get_review_history":
+        return f"{result['count']} prior human decision(s) returned as data"
     if tool == "submit_findings":
         return "Structured findings and conclusion recorded"
     return "ok"
@@ -151,11 +156,25 @@ async def run_investigation(
     seed: int,
     settings: Settings,
     agent_runner: AgentRunner = run_adk_agent,
+    approved_rules: list[Rule] | None = None,
+    review_history: list[dict[str, Any]] | None = None,
 ) -> InvestigationReport:
-    """Run one agent investigation, then verify and evaluate its proposal deterministically."""
+    """Run one agent investigation, then verify and evaluate its proposal deterministically.
+
+    ``approved_rules`` (human-approved, inactive) join the baseline as the
+    reference rule set; ``review_history`` is offered to the agent as data.
+    """
     dataset, records = get_dataset(dataset_id)
     investigation_id = uuid.uuid4().hex
-    context = InvestigationContext(run_id=investigation_id, dataset=dataset, records=records, seed=seed)
+    reference_rules = [BASELINE_RULE, *(approved_rules or [])]
+    context = InvestigationContext(
+        run_id=investigation_id,
+        dataset=dataset,
+        records=records,
+        seed=seed,
+        reference_rules=reference_rules,
+        review_history=list(review_history or []),
+    )
     toolkit = InvestigationToolkit(context)
     stats = await agent_runner(toolkit, advisory, settings)
 
@@ -174,7 +193,7 @@ async def run_investigation(
         status: InvestigationStatus = "agent_incomplete"
         headline = "The agent did not submit findings; no recommendation was produced."
     else:
-        coverage = coverage_for_fields(findings.required_fields, context.available_fields)
+        coverage = coverage_for_fields(findings.required_fields, context.available_fields, reference_rules)
         quotes = verify_quotes(findings.evidence_quotes, advisory.excerpt)
         verified = sum(1 for quote in quotes if quote["verified"])
         guardrails.append(GuardrailCheck(check="Evidence quotes verified", passed=bool(quotes) and verified == len(quotes), detail=f"{verified} of {len(quotes)} quotes found verbatim in the source text."))
@@ -187,6 +206,10 @@ async def run_investigation(
             headline = "The advisory's behaviors require data fields this dataset does not contain; no rule was tested."
             if selected_id:
                 guardrails.append(GuardrailCheck(check="No candidate without testable data", passed=False, detail="The agent selected a candidate although required fields are unavailable; it was not evaluated on test."))
+        elif selected_id is None and conclusion.coverage_assessment == "covered_by_existing_rules":
+            status = "covered_by_existing_rules"
+            names = ", ".join(rule.rule_id for rule in reference_rules)
+            headline = f"The agent assessed this technique as already covered by the reviewed rule set ({names}); no new rule is proposed."
         elif selected_id is None:
             status = "insufficient_evidence"
             headline = "No candidate was supported by validation evidence; nothing is proposed for review."
@@ -196,7 +219,7 @@ async def run_investigation(
             status = "pending_human_review"
             delta = _delta(holdout.baseline_metrics, holdout.combined_metrics)
             headline = (
-                f"Adding {selected_id} changed held-out rule-set recall by {delta.recall_change * 100:+.1f} pp "
+                f"Adding {selected_id} to {len(reference_rules)} existing rule(s) changed held-out rule-set recall by {delta.recall_change * 100:+.1f} pp "
                 f"and false-positive rate by {delta.false_positive_rate_change * 100:+.2f} pp "
                 f"({delta.alert_change:+d} alerts). Awaiting human review."
             )
@@ -242,6 +265,8 @@ async def run_investigation(
         candidates=[CandidateEvidence(rule=context.candidates[rule_id], validation=result) for rule_id, result in context.validation_results.items()],
         selected_rule=selected_rule,
         baseline_rule=BASELINE_RULE,
+        reference_rules=reference_rules,
+        review_history_used=len(context.review_history),
         holdout=holdout,
         holdout_delta=_delta(holdout.baseline_metrics, holdout.combined_metrics) if holdout else None,
         guardrails=guardrails,

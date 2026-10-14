@@ -37,12 +37,14 @@ import {
   type InvestigationStatus,
   type InvestigationSummary,
   type ReviewDecision,
+  type RuleCatalog,
   type StoredInvestigation,
 } from './api'
 import { CandidateConditions, MetricColumn, formatCount, formatDelta, formatPercent, safeMessage } from './components'
 
 const STATUS_LABEL: Record<InvestigationStatus, string> = {
   pending_human_review: 'Pending human review',
+  covered_by_existing_rules: 'Covered by existing rules',
   insufficient_evidence: 'Insufficient evidence',
   not_testable: 'Not testable with available data',
   agent_incomplete: 'Agent incomplete',
@@ -153,6 +155,28 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
   )
 }
 
+function referenceRules(report: InvestigationReport) {
+  return report.reference_rules?.length ? report.reference_rules : [report.baseline_rule]
+}
+
+function RuleCatalogPanel({ catalog }: { catalog: RuleCatalog | null }) {
+  if (!catalog) return null
+  return (
+    <section className="panel catalog-panel" aria-label="Reviewed rule catalog">
+      <div className="panel-heading"><div><div className="section-kicker">LEARNING LOOP · REVIEWED RULE CATALOG</div><h2>Rules every new investigation is compared against</h2><p>Approved candidates join the reviewed rule set and inform future investigations. Approval is not activation: approved rules stay inactive until a separate deployment decision.</p></div><span className="review-icon"><GitBranch size={17} /></span></div>
+      <ul className="catalog-list">
+        {catalog.active.map((rule) => (
+          <li key={rule.rule_id}><span className="catalog-state state-active">Active baseline</span><div><strong>{rule.rule_id}</strong> · {rule.name} <small>v{rule.version}</small><CandidateConditions rule={rule} /></div></li>
+        ))}
+        {catalog.approved_not_active.map((entry) => (
+          <li key={entry.rule.rule_id}><span className="catalog-state state-approved">Approved · not active</span><div><strong>{entry.rule.rule_id}</strong> · {entry.rule.name} <small>v{entry.rule.version}</small><CandidateConditions rule={entry.rule} /><p className="catalog-provenance">Approved by {entry.approved_by} on {new Date(entry.approved_at).toLocaleString()} from “{entry.advisory_title}”. “{entry.review_comment}”</p></div></li>
+        ))}
+      </ul>
+      {catalog.approved_not_active.length === 0 && <p className="muted-text">No candidates have been approved yet. Approve one in Human review and re-run an investigation to see it used.</p>}
+    </section>
+  )
+}
+
 function Report({ item, onReviewed }: { item: StoredInvestigation; onReviewed: () => Promise<void> }) {
   const report: InvestigationReport = item.report
   const { findings, coverage, holdout, holdout_delta: delta } = report
@@ -162,7 +186,7 @@ function Report({ item, onReviewed }: { item: StoredInvestigation; onReviewed: (
         <div className="report-banner-main">
           <span className={`status-pill pill-${report.status}`}>{STATUS_LABEL[report.status]}</span>
           <h2>{report.headline}</h2>
-          <p>{report.advisory.title} · {report.dataset.dataset_id} v{report.dataset.version} · seed {report.seed}</p>
+          <p>{report.advisory.title} · {report.dataset.dataset_id} v{report.dataset.version} · seed {report.seed} · compared against {referenceRules(report).length} reviewed rule(s) · {report.review_history_used ?? 0} prior review(s) available to the agent</p>
         </div>
         <div className="report-banner-meta">
           <span className={`origin-badge origin-${report.origin}`}>{report.origin === 'live' ? 'Live run' : 'Recorded run'}</span>
@@ -217,7 +241,7 @@ function Report({ item, onReviewed }: { item: StoredInvestigation; onReviewed: (
           <div className="coverage-grid">
             <div><h3 className="subheading">Required &amp; available</h3><FieldChips fields={coverage.available_fields} tone="ok" /></div>
             <div><h3 className="subheading">Required but missing</h3><FieldChips fields={coverage.missing_fields} tone="missing" /></div>
-            <div><h3 className="subheading">Existing rule ({report.baseline_rule.rule_id}) checks</h3><FieldChips fields={coverage.existing_rule_fields} tone="neutral" /></div>
+            <div><h3 className="subheading">Existing rules ({referenceRules(report).map((rule) => rule.rule_id).join(', ')}) check</h3><FieldChips fields={coverage.existing_rule_fields} tone="neutral" /></div>
           </div>
           {report.agent_conclusion && <div className="agent-rationale"><Bot size={15} /><div><strong>Agent assessment: {report.agent_conclusion.coverage_assessment.replace(/_/g, ' ')}</strong><p>{report.agent_conclusion.rationale}</p></div></div>}
         </section>
@@ -261,8 +285,8 @@ function Report({ item, onReviewed }: { item: StoredInvestigation; onReviewed: (
             <div><span>Alert volume</span><strong>{delta.alert_change >= 0 ? '+' : ''}{formatCount(delta.alert_change)}</strong></div>
           </div>
           <section className="comparison-grid" aria-label="Held-out rule-set comparison">
-            <MetricColumn label={`Existing: ${report.baseline_rule.name}`} metrics={holdout.baseline_metrics} accent="neutral" />
-            <MetricColumn label={`Existing + ${report.selected_rule.name}`} metrics={holdout.combined_metrics} accent="green" />
+            <MetricColumn label={`Existing rule set (${referenceRules(report).length})`} metrics={holdout.baseline_metrics} accent="neutral" />
+            <MetricColumn label={`Existing set + ${report.selected_rule.name}`} metrics={holdout.combined_metrics} accent="green" />
           </section>
         </section>
       )}
@@ -320,6 +344,15 @@ export default function InvestigationView() {
   const [elapsed, setElapsed] = useState(0)
   const [showCustom, setShowCustom] = useState(false)
   const [custom, setCustom] = useState<CustomAdvisory>(EMPTY_CUSTOM)
+  const [catalog, setCatalog] = useState<RuleCatalog | null>(null)
+
+  const refreshCatalog = useCallback(async () => {
+    try {
+      setCatalog(await apiRequest<RuleCatalog>('/api/v1/rule-catalog'))
+    } catch {
+      setCatalog(null)
+    }
+  }, [])
 
   const openInvestigation = useCallback(async (investigationId: string) => {
     try {
@@ -342,13 +375,14 @@ export default function InvestigationView() {
       apiRequest<AgentStatus>('/api/v1/agent/status'),
       apiRequest<AdvisoryList>('/api/v1/advisories'),
       refreshHistory(),
+      refreshCatalog(),
     ])
     if (status.status === 'fulfilled') setAgentStatus(status.value)
     if (advisoryList.status === 'fulfilled') setAdvisories(advisoryList.value.items)
     else setLoadError(safeMessage(advisoryList.reason))
     if (items.status === 'fulfilled' && items.value.length) await openInvestigation(items.value[0].investigation_id)
     setLoading(false)
-  }, [openInvestigation, refreshHistory])
+  }, [openInvestigation, refreshHistory, refreshCatalog])
 
   useEffect(() => {
     void load()
@@ -440,6 +474,8 @@ export default function InvestigationView() {
       )}
       {runError && <div className="inline-error" role="alert"><ShieldAlert size={16} /><span>{runError}</span></div>}
 
+      <RuleCatalogPanel catalog={catalog} />
+
       {history.length > 0 && (
         <section className="history-strip" aria-label="Investigation history">
           <span className="history-label"><History size={14} /> History</span>
@@ -454,7 +490,7 @@ export default function InvestigationView() {
       )}
 
       {current ? (
-        <Report item={current} onReviewed={async () => { await openInvestigation(current.report.investigation_id); await refreshHistory() }} />
+        <Report item={current} onReviewed={async () => { await openInvestigation(current.report.investigation_id); await refreshHistory(); await refreshCatalog() }} />
       ) : !loading && !running && (
         <section className="state-card empty-card"><div className="state-icon"><Database size={18} /></div><div><strong>No investigation yet</strong><p>Choose an advisory above to run the agent. Results include source-linked findings, coverage analysis, validated candidates, a single held-out test, and a review decision.</p></div></section>
       )}

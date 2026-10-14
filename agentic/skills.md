@@ -87,20 +87,28 @@ Prerequisites: GCP project with billing, `gcloud` (or Cloud Shell), a Gemini API
 
 ```bash
 gcloud config set project PROJECT_ID
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com firestore.googleapis.com
+gcloud firestore databases create --location=asia-southeast1
 printf '%s' 'NEW_GEMINI_KEY' | gcloud secrets create gemini-api-key --data-file=-
 gcloud run deploy rulepilot-ai --source . --region asia-southeast1 \
   --allow-unauthenticated --memory 1Gi --cpu 1 --timeout 300 \
   --max-instances 2 --concurrency 10 \
-  --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=FALSE \
+  --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=FALSE,RULEPILOT_STORE=firestore,GOOGLE_CLOUD_PROJECT=PROJECT_ID \
   --set-secrets GOOGLE_API_KEY=gemini-api-key:latest
 ```
 
-Grant the runtime service account `roles/secretmanager.secretAccessor` on the secret if deploy reports access denied.
+Grant the runtime service account `roles/secretmanager.secretAccessor` on the secret and `roles/datastore.user` on the project if deploy or the first review reports access denied.
 
 **Verify:** `/health`, `/api/v1/agent/status` shows `configured: true`, the dashboard loads at `/`, one live investigation completes.
 
-## 10. Diagnose agent failures
+## 10. Demonstrate the learning loop
+
+1. Investigate *Preventing Card Testing* → status *Pending human review*.
+2. Approve it with a comment (e.g. "Keep rule-set FPR under 1%"). The **Reviewed rule catalog** now lists the rule as *Approved · not active*.
+3. Investigate the same advisory again. Expect the banner *Covered by existing rules*, "compared against 2 reviewed rule(s) · 1 prior review(s)", and `get_review_history` in the agent trace.
+4. To reset, record *Reject* on the first investigation (removes it from the catalog) or clear `backend/.rulepilot_data` locally.
+
+## 11. Diagnose agent failures
 
 | Symptom in `model_run.errors` | Meaning | Action |
 | --- | --- | --- |

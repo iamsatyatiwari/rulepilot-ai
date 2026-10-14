@@ -31,6 +31,8 @@ class Settings:
     cors_origins: tuple[str, ...]
     data_dir: Path
     static_dir: Path | None
+    store: str
+    gcp_project: str | None
 
     @property
     def gemini_configured(self) -> bool:
@@ -61,4 +63,6 @@ def get_settings() -> Settings:
         cors_origins=tuple(origin.strip() for origin in origins.split(",") if origin.strip()),
         data_dir=Path(os.environ.get("RULEPILOT_DATA_DIR", BACKEND_DIR / ".rulepilot_data")),
         static_dir=Path(static) if static else None,
+        store="firestore" if os.environ.get("RULEPILOT_STORE", "local").lower() == "firestore" else "local",
+        gcp_project=os.environ.get("GOOGLE_CLOUD_PROJECT") or None,
     )

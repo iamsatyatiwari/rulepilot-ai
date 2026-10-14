@@ -1,23 +1,31 @@
-"""Investigation storage, human review decisions, and an append-only audit log.
+"""Investigation storage, human review, the reviewed rule catalog, and audit.
 
-Storage is a local JSON file per investigation plus a JSONL audit log. It is a
-prototype store: on Cloud Run the filesystem is ephemeral, so records survive
-only for the life of an instance. Approval never activates a rule.
+Records are stored through a ``DocumentBackend`` (local JSON or Firestore) so
+state survives restarts. Approval adds a rule to the reviewed catalog as
+approved-but-inactive; a later reject or request-changes decision removes it.
+Nothing here activates a rule.
 """
 
 from __future__ import annotations
 
-import json
 import threading
+import time
+import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 
 from app.agent.orchestrator import InvestigationReport
+from app.rules.models import Rule, RuleStatus
+from app.storage import DocumentBackend
 
 ReviewDecisionValue = Literal["approve", "reject", "request_changes"]
+MAX_REVIEW_HISTORY = 10
+
+INVESTIGATIONS = "investigations"
+AUDIT = "audit"
+CATALOG = "rule_catalog"
 
 
 class ReviewRequest(BaseModel):
@@ -38,7 +46,7 @@ class ReviewRecord(ReviewRequest):
 
 
 class AuditEvent(BaseModel):
-    event_id: int
+    event_id: str
     at: datetime
     investigation_id: str
     event: str
@@ -48,6 +56,19 @@ class AuditEvent(BaseModel):
 class StoredInvestigation(BaseModel):
     report: InvestigationReport
     reviews: list[ReviewRecord] = []
+
+
+class CatalogEntry(BaseModel):
+    """A human-approved rule. Approved for further testing, never active."""
+
+    rule: Rule
+    approved_by: str
+    approved_at: datetime
+    review_comment: str
+    investigation_id: str
+    advisory_title: str
+    technique: str | None
+    activation: Literal["not_activated"] = "not_activated"
 
 
 class InvestigationSummary(BaseModel):
@@ -62,49 +83,41 @@ class InvestigationSummary(BaseModel):
 
 
 class GovernanceStore:
-    def __init__(self, data_dir: Path) -> None:
-        self.data_dir = data_dir
-        self._items: dict[str, StoredInvestigation] = {}
-        self._audit: list[AuditEvent] = []
+    def __init__(self, backend: DocumentBackend) -> None:
+        self.backend = backend
+        self._recorded: dict[str, StoredInvestigation] = {}
         self._lock = threading.Lock()
-        self._load()
 
-    def _load(self) -> None:
-        investigations = self.data_dir / "investigations"
-        if investigations.is_dir():
-            for path in sorted(investigations.glob("*.json")):
-                try:
-                    item = StoredInvestigation.model_validate_json(path.read_text(encoding="utf-8"))
-                except ValueError:
-                    continue
-                self._items[item.report.investigation_id] = item
-        audit = self.data_dir / "audit.jsonl"
-        if audit.is_file():
-            for line in audit.read_text(encoding="utf-8").splitlines():
-                try:
-                    self._audit.append(AuditEvent.model_validate_json(line))
-                except ValueError:
-                    continue
+    # ---- storage helpers -------------------------------------------------
 
-    def _persist(self, item: StoredInvestigation) -> None:
-        folder = self.data_dir / "investigations"
-        folder.mkdir(parents=True, exist_ok=True)
-        (folder / f"{item.report.investigation_id}.json").write_text(item.model_dump_json(indent=2), encoding="utf-8")
+    def _save(self, item: StoredInvestigation) -> None:
+        self.backend.put(INVESTIGATIONS, item.report.investigation_id, {
+            "investigation_id": item.report.investigation_id,
+            "created_at": item.report.created_at.isoformat(),
+            "payload": item.model_dump_json(),
+        })
+
+    def _load(self, document: dict[str, Any]) -> StoredInvestigation | None:
+        try:
+            return StoredInvestigation.model_validate_json(document["payload"])
+        except (KeyError, ValueError):
+            return None
 
     def _append_audit(self, investigation_id: str, event: str, detail: dict[str, Any]) -> None:
-        record = AuditEvent(event_id=len(self._audit) + 1, at=datetime.now(timezone.utc), investigation_id=investigation_id, event=event, detail=detail)
-        self._audit.append(record)
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        with (self.data_dir / "audit.jsonl").open("a", encoding="utf-8") as handle:
-            handle.write(record.model_dump_json() + "\n")
+        at = datetime.now(timezone.utc)
+        event_id = f"{time.time_ns():020d}-{uuid.uuid4().hex[:6]}"
+        record = AuditEvent(event_id=event_id, at=at, investigation_id=investigation_id, event=event, detail=detail)
+        self.backend.put(AUDIT, event_id, {"payload": record.model_dump_json()})
 
-    def add(self, report: InvestigationReport, persist: bool = True) -> None:
+    # ---- investigations --------------------------------------------------
+
+    def add_recorded(self, report: InvestigationReport) -> None:
+        """Register a recorded demo run in memory (not persisted until reviewed)."""
+        self._recorded[report.investigation_id] = StoredInvestigation(report=report)
+
+    def add(self, report: InvestigationReport) -> None:
         with self._lock:
-            item = StoredInvestigation(report=report)
-            self._items[report.investigation_id] = item
-            if not persist:
-                return
-            self._persist(item)
+            self._save(StoredInvestigation(report=report))
             self._append_audit(report.investigation_id, "investigation_completed", {
                 "advisory_id": report.advisory.advisory_id,
                 "advisory_sha256": report.advisory.content_sha256,
@@ -114,14 +127,27 @@ class GovernanceStore:
                 "model": report.model_run.model,
                 "status": report.status,
                 "tool_calls": len(report.trace),
+                "reference_rules": [rule.rule_id for rule in report.reference_rules],
                 "selected_rule_id": report.selected_rule.rule_id if report.selected_rule else None,
             })
 
     def get(self, investigation_id: str) -> StoredInvestigation | None:
-        return self._items.get(investigation_id)
+        try:
+            document = self.backend.get(INVESTIGATIONS, investigation_id)
+        except ValueError:
+            return None
+        stored = self._load(document) if document else None
+        return stored or self._recorded.get(investigation_id)
+
+    def _all(self) -> list[StoredInvestigation]:
+        items = {item.report.investigation_id: item for item in self._recorded.values()}
+        for document in self.backend.all(INVESTIGATIONS):
+            item = self._load(document)
+            if item is not None:
+                items[item.report.investigation_id] = item
+        return sorted(items.values(), key=lambda item: item.report.created_at, reverse=True)
 
     def list(self) -> list[InvestigationSummary]:
-        items = sorted(self._items.values(), key=lambda item: item.report.created_at, reverse=True)
         return [
             InvestigationSummary(
                 investigation_id=item.report.investigation_id,
@@ -133,12 +159,14 @@ class GovernanceStore:
                 selected_rule_id=item.report.selected_rule.rule_id if item.report.selected_rule else None,
                 review_decision=item.reviews[-1].decision if item.reviews else None,
             )
-            for item in items
+            for item in self._all()
         ]
+
+    # ---- review and catalog ----------------------------------------------
 
     def review(self, investigation_id: str, request: ReviewRequest) -> ReviewRecord:
         with self._lock:
-            item = self._items.get(investigation_id)
+            item = self.get(investigation_id)
             if item is None:
                 raise KeyError(investigation_id)
             rule = item.report.selected_rule
@@ -153,8 +181,8 @@ class GovernanceStore:
                 decided_at=datetime.now(timezone.utc),
             )
             item.reviews.append(record)
-            if item.report.origin == "live":
-                self._persist(item)
+            self._save(item)
+            self._recorded.pop(investigation_id, None)
             self._append_audit(investigation_id, "review_recorded", {
                 "decision": record.decision,
                 "reviewer": record.reviewer,
@@ -162,7 +190,66 @@ class GovernanceStore:
                 "rule_version": record.rule_version,
                 "activation": record.activation,
             })
+            if record.decision == "approve":
+                entry = CatalogEntry(
+                    rule=rule.model_copy(update={"status": RuleStatus.APPROVED}),
+                    approved_by=record.reviewer,
+                    approved_at=record.decided_at,
+                    review_comment=record.comment,
+                    investigation_id=investigation_id,
+                    advisory_title=item.report.advisory.title,
+                    technique=item.report.findings.technique_name if item.report.findings else None,
+                )
+                self.backend.put(CATALOG, rule.rule_id, {"payload": entry.model_dump_json()})
+                self._append_audit(investigation_id, "rule_added_to_catalog", {"rule_id": rule.rule_id, "activation": "not_activated"})
+            elif self.backend.get(CATALOG, rule.rule_id) is not None:
+                self.backend.delete(CATALOG, rule.rule_id)
+                self._append_audit(investigation_id, "rule_removed_from_catalog", {"rule_id": rule.rule_id, "decision": record.decision})
             return record
 
+    def catalog(self) -> list[CatalogEntry]:
+        entries = []
+        for document in self.backend.all(CATALOG):
+            try:
+                entries.append(CatalogEntry.model_validate_json(document["payload"]))
+            except (KeyError, ValueError):
+                continue
+        return sorted(entries, key=lambda entry: entry.approved_at)
+
+    def approved_rules(self) -> list[Rule]:
+        return [entry.rule for entry in self.catalog()]
+
+    def review_history(self, limit: int = MAX_REVIEW_HISTORY) -> list[dict[str, Any]]:
+        """Recent human decisions, summarized for the agent as untrusted data."""
+        rows: list[tuple[datetime, dict[str, Any]]] = []
+        for item in self._all():
+            report = item.report
+            rule = report.selected_rule
+            for review in item.reviews:
+                rows.append((review.decided_at, {
+                    "decided_at": review.decided_at.isoformat(),
+                    "decision": review.decision,
+                    "reviewer_comment": review.comment[:300],
+                    "advisory_title": report.advisory.title,
+                    "technique": report.findings.technique_name if report.findings else None,
+                    "rule_id": review.rule_id,
+                    "conditions": [c.model_dump(mode="json") for c in rule.conditions] if rule else [],
+                    "logical_operator": rule.logical_operator.value if rule else None,
+                    "held_out_recall_change": round(report.holdout_delta.recall_change, 4) if report.holdout_delta else None,
+                    "held_out_false_positive_rate_change": round(report.holdout_delta.false_positive_rate_change, 5) if report.holdout_delta else None,
+                }))
+        rows.sort(key=lambda row: row[0], reverse=True)
+        return [row for _, row in rows[:limit]]
+
+    # ---- audit -----------------------------------------------------------
+
     def audit(self, investigation_id: str | None = None) -> list[AuditEvent]:
-        return [event for event in self._audit if investigation_id is None or event.investigation_id == investigation_id]
+        events = []
+        for document in self.backend.all(AUDIT):
+            try:
+                event = AuditEvent.model_validate_json(document["payload"])
+            except (KeyError, ValueError):
+                continue
+            if investigation_id is None or event.investigation_id == investigation_id:
+                events.append(event)
+        return sorted(events, key=lambda event: event.event_id)

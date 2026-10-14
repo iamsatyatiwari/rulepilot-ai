@@ -510,3 +510,18 @@ button.nav-item:hover:not(.active) { background: #f6f9f7; }
   .advisory-grid { grid-template-columns: 1fr; }
   .meta-list div { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* ---- Learning loop ---- */
+.banner-covered_by_existing_rules { background: #1f4a3d; }
+.pill-covered_by_existing_rules { background: #b9e3cb; }
+.dot-covered_by_existing_rules { background: #3f9a6c; }
+.catalog-panel { margin-bottom: 16px; }
+.catalog-list { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+.catalog-list li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; align-items: start; font-size: 12px; color: #3f5347; }
+.catalog-list small { color: #8b9991; font: 10px Consolas, monospace; }
+.catalog-list .condition-list { margin-top: 6px; }
+.catalog-state { justify-self: start; padding: 4px 7px; border-radius: 4px; font: 700 9px Consolas, monospace; text-transform: uppercase; }
+.state-active { color: #44698a; background: #e4eef6; }
+.state-approved { color: #23794f; background: #e3f2e8; }
+.catalog-provenance { margin: 6px 0 0; color: #6f8277; font-size: 11px; line-height: 1.5; }
+@media (max-width: 560px) { .catalog-list li { grid-template-columns: 1fr; } }

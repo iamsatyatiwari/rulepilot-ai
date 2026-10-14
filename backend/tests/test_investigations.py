@@ -9,6 +9,7 @@ from app.agent.agent import AgentRunStats, build_user_message
 from app.agent.orchestrator import run_investigation
 from app.config import get_settings
 from app.governance import GovernanceStore
+from app.storage import LocalJsonBackend
 from app.intel.advisories import Advisory, load_curated_advisories, verify_quotes
 from app.main import app
 
@@ -140,7 +141,7 @@ def test_document_delimiters_cannot_be_spoofed():
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "test-key-not-real")
-    store = GovernanceStore(tmp_path)
+    store = GovernanceStore(LocalJsonBackend(tmp_path))
     original = investigations_api.run_investigation
     monkeypatch.setattr(
         investigations_api,
@@ -177,7 +178,11 @@ def test_investigation_review_and_audit_flow(client):
     stored = client.get(f"/api/v1/investigations/{investigation_id}").json()
     assert stored["reviews"][0]["decision"] == "approve"
     audit = client.get(f"/api/v1/audit?investigation_id={investigation_id}").json()
-    assert [event["event"] for event in audit] == ["investigation_completed", "review_recorded"]
+    assert [event["event"] for event in audit] == [
+        "investigation_completed",
+        "review_recorded",
+        "rule_added_to_catalog",
+    ]
 
 
 def custom(source_url="https://example.com/advisory", text="x" * 60):
