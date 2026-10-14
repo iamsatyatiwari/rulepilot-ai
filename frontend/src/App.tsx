@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Check, FileSearch, GitBranch, LayoutDashboard, Menu, ShieldCheck, X } from 'lucide-react'
+import { Activity, Check, FileSearch, GitBranch, LayoutDashboard, Menu, ShieldCheck, X } from 'lucide-react'
 import { apiRequest, type ApiHealth } from './api'
 import InvestigationView from './InvestigationView'
+import MonitorView from './MonitorView'
 import RuleEngineView from './RuleEngineView'
 
-type View = 'investigations' | 'engine'
+type View = 'investigations' | 'monitor' | 'engine'
+
+const VIEW_TITLE: Record<View, string> = { investigations: 'Intelligence investigations', monitor: 'Transaction monitor', engine: 'Rule engine' }
 type HealthState = 'checking' | 'online' | 'offline'
 
 function viewFromHash(): View {
-  return window.location.hash === '#engine' ? 'engine' : 'investigations'
+  if (window.location.hash === '#engine') return 'engine'
+  if (window.location.hash === '#monitor') return 'monitor'
+  return 'investigations'
 }
 
 function App() {
@@ -32,7 +37,7 @@ function App() {
   const navigate = (next: View) => {
     setView(next)
     setMenuOpen(false)
-    window.history.replaceState(null, '', next === 'engine' ? '#engine' : '#investigations')
+    window.history.replaceState(null, '', `#${next}`)
   }
 
   return (
@@ -47,6 +52,7 @@ function App() {
         <div className="nav-label">WORKSPACE</div>
         <nav className="side-nav" aria-label="Main navigation">
           <button className={`nav-item ${view === 'investigations' ? 'active' : ''}`} onClick={() => navigate('investigations')} aria-current={view === 'investigations' ? 'page' : undefined}><FileSearch size={17} /><span>Investigations</span><span className="nav-soon">AGENT</span></button>
+          <button className={`nav-item ${view === 'monitor' ? 'active' : ''}`} onClick={() => navigate('monitor')} aria-current={view === 'monitor' ? 'page' : undefined}><Activity size={17} /><span>Transaction monitor</span><span className="nav-soon">SHADOW</span></button>
           <button className={`nav-item ${view === 'engine' ? 'active' : ''}`} onClick={() => navigate('engine')} aria-current={view === 'engine' ? 'page' : undefined}><LayoutDashboard size={17} /><span>Rule engine</span><span className="nav-soon">BASELINE</span></button>
         </nav>
         <div className="nav-label nav-label-lower">PLATFORM</div>
@@ -58,7 +64,7 @@ function App() {
       <main className="main-content" id="overview">
         <header className="topbar">
           <button className="mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <div className="breadcrumbs"><span>Workspace</span><span className="crumb-slash">/</span><strong>{view === 'engine' ? 'Rule engine' : 'Intelligence investigations'}</strong></div>
+          <div className="breadcrumbs"><span>Workspace</span><span className="crumb-slash">/</span><strong>{VIEW_TITLE[view]}</strong></div>
           <div className="top-actions">
             <span className={`api-status api-${healthState}`} role="status" aria-live="polite"><span className="status-dot" />{healthState === 'checking' ? 'Checking API' : healthState === 'online' ? 'API connected' : 'API unavailable'}</span>
             <span className="top-divider" /><div className="mini-avatar" aria-label="RulePilot workspace">RP</div>
@@ -66,7 +72,7 @@ function App() {
         </header>
 
         <div className="page-container">
-          {view === 'engine' ? <RuleEngineView /> : <InvestigationView />}
+          {view === 'engine' ? <RuleEngineView /> : view === 'monitor' ? <MonitorView /> : <InvestigationView />}
           <footer className="page-footer"><span>RULEPILOT AI <i>·</i> CONTINUOUS FINANCIAL RULE INTELLIGENCE</span><span>Synthetic data only <i>·</i> Not a production fraud system</span></footer>
         </div>
       </main>

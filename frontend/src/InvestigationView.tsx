@@ -63,6 +63,12 @@ const DECISION_LABEL: Record<ReviewDecision, string> = {
   request_changes: 'Changes requested',
 }
 
+const ORIGIN_LABEL: Record<InvestigationReport['origin'], string> = {
+  live: 'Live run',
+  recorded: 'Recorded run',
+  scheduled: 'Scheduled run',
+}
+
 type StepState = 'done' | 'skipped' | 'failed' | 'pending'
 
 function Pipeline({ item }: { item: StoredInvestigation }) {
@@ -180,16 +186,19 @@ function RuleCatalogPanel({ catalog }: { catalog: RuleCatalog | null }) {
 function Report({ item, onReviewed }: { item: StoredInvestigation; onReviewed: () => Promise<void> }) {
   const report: InvestigationReport = item.report
   const { findings, coverage, holdout, holdout_delta: delta } = report
+  // Once a human has decided, the banner shows the decision instead of "awaiting review".
+  const decision = report.status === 'pending_human_review' && item.reviews.length ? item.reviews[item.reviews.length - 1].decision : null
+  const headline = decision ? report.headline.replace(/\s*Awaiting human review\.?$/, '') : report.headline
   return (
     <div className="report">
       <section className={`report-banner banner-${report.status}`} role="status">
         <div className="report-banner-main">
-          <span className={`status-pill pill-${report.status}`}>{STATUS_LABEL[report.status]}</span>
-          <h2>{report.headline}</h2>
+          <span className={`status-pill pill-${decision ? `review-${decision}` : report.status}`}>{decision ? DECISION_LABEL[decision] : STATUS_LABEL[report.status]}</span>
+          <h2>{headline}</h2>
           <p>{report.advisory.title} · {report.dataset.dataset_id} v{report.dataset.version} · seed {report.seed} · compared against {referenceRules(report).length} reviewed rule(s) · {report.review_history_used ?? 0} prior review(s) available to the agent</p>
         </div>
         <div className="report-banner-meta">
-          <span className={`origin-badge origin-${report.origin}`}>{report.origin === 'live' ? 'Live run' : 'Recorded run'}</span>
+          <span className={`origin-badge origin-${report.origin}`}>{ORIGIN_LABEL[report.origin]}</span>
           <small>{new Date(report.created_at).toLocaleString()}</small>
           <small><Bot size={12} /> {report.model_run.model} · {report.model_run.llm_calls} model calls</small>
         </div>
@@ -483,7 +492,7 @@ export default function InvestigationView() {
             <button key={summary.investigation_id} className={`history-item ${current?.report.investigation_id === summary.investigation_id ? 'active' : ''}`} onClick={() => void openInvestigation(summary.investigation_id)}>
               <span className={`dot dot-${summary.status}`} />
               <span>{summary.advisory_title.length > 34 ? `${summary.advisory_title.slice(0, 34)}…` : summary.advisory_title}</span>
-              <small>{summary.origin === 'recorded' ? 'recorded' : new Date(summary.created_at).toLocaleTimeString()}</small>
+              <small>{summary.origin === 'recorded' ? 'recorded' : `${summary.origin === 'scheduled' ? 'scheduled · ' : ''}${new Date(summary.created_at).toLocaleTimeString()}`}</small>
             </button>
           ))}
         </section>

@@ -1,13 +1,14 @@
 # UI guide — components and how to use them
 
-The dashboard has two views, selected in the left sidebar:
+The dashboard has three views, selected in the left sidebar:
 
 | View | URL hash | Purpose |
 | --- | --- | --- |
 | **Investigations** (default) | `#investigations` | Run the Gemini agent on an advisory and review the result |
+| **Transaction monitor** | `#monitor` | Mock bank feed scored by the engine; approved rules run in shadow mode |
 | **Rule engine** | `#engine` | Baseline threshold discovery on the original v1 fixture (M2B) |
 
-Source files: `frontend/src/App.tsx` (shell), `InvestigationView.tsx`, `RuleEngineView.tsx`, `components.tsx` (shared), `api.ts` (typed client), `styles.css`.
+Source files: `frontend/src/App.tsx` (shell), `InvestigationView.tsx`, `MonitorView.tsx`, `RuleEngineView.tsx`, `components.tsx` (shared), `api.ts` (typed client), `styles.css`.
 
 ---
 
@@ -21,6 +22,8 @@ Source files: `frontend/src/App.tsx` (shell), `InvestigationView.tsx`, `RuleEngi
 6. Click **Investigate** on the *SIM Swap* advisory. The banner reports **Not testable with available data** and no rule is proposed — the system does not invent a link.
 7. Use the **History** strip to switch between runs.
 8. **Learning loop:** after approving in step 5, the **Reviewed rule catalog** lists the rule as *Approved · not active*. Investigate the card-testing advisory again: the banner reports **Covered by existing rules** because the approved rule is now part of the rule set.
+
+9. **Shadow scoring:** open **Transaction monitor** and click **Stream 20 transactions**. Rows marked *Caught only by approved rule* are synthetic fraud the baseline allowed but the approved rule would flag. The decision never changes, because approval does not activate a rule.
 
 If Gemini is busy or not configured, open the **recorded** runs in History; they are real earlier runs.
 
@@ -114,6 +117,19 @@ Buttons for the 8 most recent investigations. The coloured dot is the status (am
 The form appears only when the status is *Pending human review*. Multiple decisions are kept in order.
 
 ---
+
+## 4a. Transaction monitor (`MonitorView.tsx`)
+
+| Element | Meaning |
+| --- | --- |
+| Shadow chip | Number of approved (inactive) rules running in shadow |
+| **Stream 20 transactions** | `POST /api/v1/transactions/simulate` with the next seed; rows appear one by one |
+| Rules panel | *Active · decides* (baseline) and *Shadow · approved* rules with provenance |
+| Summary strip | Fraud caught by active rules, **caught only by approved rules** (highlighted), missed by all, shadow false alarms |
+| Feed table | Features, active *Decision*, *Shadow* verdict, synthetic label, and outcome tag. Green rows = caught only in shadow; red rows = missed by every rule |
+| Score a transaction | Presets (*Card-testing burst*, *Large purchase abroad*, *Everyday purchase*) or manual values → `POST /api/v1/transactions/score` |
+
+The result banner in Investigations now shows the latest human decision (e.g. *Rejected*) instead of *Pending human review* once a review exists.
 
 ## 4. Rule engine view (`RuleEngineView.tsx`)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from typing import Literal
 
 from app.rules.models import Transaction
 
@@ -73,60 +74,102 @@ def create_card_scenario_dataset(
     for index in range(size):
         draw = randomizer.random()
         if draw < 0.015:
-            # Synthetic high-value misuse.
-            amount = round(randomizer.uniform(700, 4200), 2)
-            account_age_days = randomizer.randint(1, 2400)
-            transactions_24h = randomizer.randint(1, 8)
-            transactions_1h = randomizer.randint(0, 3)
-            declined = randomizer.choice([0, 0, 0, 1, 2])
-            distance = round(randomizer.uniform(120, 3000), 2)
-            card_present = randomizer.choice([0, 0, 1])
-            is_fraud = True
+            pattern: ScenarioPattern = "high_value_misuse"
         elif draw < 0.03:
-            # Injected synthetic card-testing pattern.
-            amount = round(randomizer.uniform(0.5, 25), 2)
-            account_age_days = randomizer.randint(1, 2400)
-            transactions_1h = randomizer.randint(2, 18)
-            transactions_24h = transactions_1h + randomizer.randint(0, 10)
-            declined = randomizer.randint(1, 14)
-            distance = round(randomizer.uniform(0, 900), 2)
-            card_present = 0
-            is_fraud = True
+            pattern = "card_testing"
         else:
-            amount = round(min(randomizer.lognormvariate(3.8, 1.0), 6000), 2)
-            account_age_days = randomizer.randint(1, 3600)
-            transactions_1h = randomizer.choice([0, 0, 0, 1, 1, 2])
-            transactions_24h = transactions_1h + randomizer.randint(0, 6)
-            declined = randomizer.choice([0] * 18 + [1, 2])
-            distance = round(randomizer.expovariate(1 / 25), 2)
-            card_present = 1 if randomizer.random() < 0.6 else 0
-            look_alike = randomizer.random()
-            if look_alike < 0.015:
-                # Legitimate small-value bursts (top-ups, transit taps, subscriptions).
-                amount = round(randomizer.uniform(1, 15), 2)
-                transactions_1h = randomizer.randint(3, 8)
-                transactions_24h = transactions_1h + randomizer.randint(0, 6)
-                card_present = randomizer.choice([0, 1])
-                declined = randomizer.choice([0, 0, 1, 1, 2, 3, 4])
-            elif look_alike < 0.023:
-                # Legitimate large purchases while travelling.
-                amount = round(randomizer.uniform(900, 3500), 2)
-                distance = round(randomizer.uniform(150, 2500), 2)
-            is_fraud = False
+            pattern = "legitimate"
+        rows.append(_card_scenario_row(randomizer, pattern, f"CSC-{index + 1:05d}"))
+    return rows
 
-        rows.append(
-            Transaction(
-                transaction_id=f"CSC-{index + 1:05d}",
-                amount=amount,
-                account_age_days=account_age_days,
-                transactions_24h=transactions_24h,
-                distance_from_home_km=distance,
-                transactions_1h=transactions_1h,
-                declined_attempts_24h=declined,
-                card_present=card_present,
-                ground_truth_fraud=is_fraud,
-            )
-        )
+
+ScenarioPattern = Literal["high_value_misuse", "card_testing", "legitimate"]
+
+
+def _card_scenario_row(randomizer: random.Random, pattern: ScenarioPattern, transaction_id: str) -> Transaction:
+    """Draw one card-scenario record for a given pattern (shared by the dataset and the demo feed)."""
+    if pattern == "high_value_misuse":
+        # Synthetic high-value misuse.
+        amount = round(randomizer.uniform(700, 4200), 2)
+        account_age_days = randomizer.randint(1, 2400)
+        transactions_24h = randomizer.randint(1, 8)
+        transactions_1h = randomizer.randint(0, 3)
+        declined = randomizer.choice([0, 0, 0, 1, 2])
+        distance = round(randomizer.uniform(120, 3000), 2)
+        card_present = randomizer.choice([0, 0, 1])
+        is_fraud = True
+    elif pattern == "card_testing":
+        # Injected synthetic card-testing pattern.
+        amount = round(randomizer.uniform(0.5, 25), 2)
+        account_age_days = randomizer.randint(1, 2400)
+        transactions_1h = randomizer.randint(2, 18)
+        transactions_24h = transactions_1h + randomizer.randint(0, 10)
+        declined = randomizer.randint(1, 14)
+        distance = round(randomizer.uniform(0, 900), 2)
+        card_present = 0
+        is_fraud = True
+    else:
+        amount = round(min(randomizer.lognormvariate(3.8, 1.0), 6000), 2)
+        account_age_days = randomizer.randint(1, 3600)
+        transactions_1h = randomizer.choice([0, 0, 0, 1, 1, 2])
+        transactions_24h = transactions_1h + randomizer.randint(0, 6)
+        declined = randomizer.choice([0] * 18 + [1, 2])
+        distance = round(randomizer.expovariate(1 / 25), 2)
+        card_present = 1 if randomizer.random() < 0.6 else 0
+        look_alike = randomizer.random()
+        if look_alike < 0.015:
+            # Legitimate small-value bursts (top-ups, transit taps, subscriptions).
+            amount = round(randomizer.uniform(1, 15), 2)
+            transactions_1h = randomizer.randint(3, 8)
+            transactions_24h = transactions_1h + randomizer.randint(0, 6)
+            card_present = randomizer.choice([0, 1])
+            declined = randomizer.choice([0, 0, 1, 1, 2, 3, 4])
+        elif look_alike < 0.023:
+            # Legitimate large purchases while travelling.
+            amount = round(randomizer.uniform(900, 3500), 2)
+            distance = round(randomizer.uniform(150, 2500), 2)
+        is_fraud = False
+
+    return Transaction(
+        transaction_id=transaction_id,
+        amount=amount,
+        account_age_days=account_age_days,
+        transactions_24h=transactions_24h,
+        distance_from_home_km=distance,
+        transactions_1h=transactions_1h,
+        declined_attempts_24h=declined,
+        card_present=card_present,
+        ground_truth_fraud=is_fraud,
+    )
+
+
+DEMO_FEED_MAX = 50
+DEMO_FEED_CARD_TESTING_SHARE = 0.25
+DEMO_FEED_HIGH_VALUE_SHARE = 0.10
+
+
+def create_demo_feed(count: int, seed: int) -> list[Transaction]:
+    """Create fresh synthetic transactions that stand in for a bank's live feed.
+
+    Records are drawn with the same per-pattern distributions as
+    ``card-scenario-v2`` but from an independent random stream, so they are
+    never records from any dataset split. Fraud is deliberately over-represented
+    (about 25% card testing, 10% high-value misuse) so a short demo shows each
+    pattern; this mix is not a realistic fraud rate.
+    """
+    if not 1 <= count <= DEMO_FEED_MAX:
+        raise ValueError(f"count must be between 1 and {DEMO_FEED_MAX}")
+    randomizer = random.Random(f"rulepilot-demo-feed:{seed}")
+    rows: list[Transaction] = []
+    for index in range(count):
+        draw = randomizer.random()
+        if draw < DEMO_FEED_CARD_TESTING_SHARE:
+            pattern: ScenarioPattern = "card_testing"
+        elif draw < DEMO_FEED_CARD_TESTING_SHARE + DEMO_FEED_HIGH_VALUE_SHARE:
+            pattern = "high_value_misuse"
+        else:
+            pattern = "legitimate"
+        rows.append(_card_scenario_row(randomizer, pattern, f"FEED-{seed}-{index + 1:03d}"))
     return rows
 
 

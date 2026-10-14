@@ -12,6 +12,7 @@ Read in this order:
 | [skills.md](skills.md) | When doing a task | Step-by-step procedures for recurring tasks |
 | [tasks.md](tasks.md) | When choosing what to do next | Milestones, backlog, and definition of done |
 | [ui-guide.md](ui-guide.md) | Before touching the frontend or demoing | Every UI component and how to use it |
+| [session-log.md](session-log.md) | At the start and end of every session | Current handoff and per-session log, so work resumes in a new context window |
 
 ## Keeping this folder accurate
 

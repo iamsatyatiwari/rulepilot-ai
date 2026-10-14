@@ -132,10 +132,38 @@ The model is never retrained; the system learns through reviewed state.
     with 1 prior review and returned covered_by_existing_rules.
 
 
+SHADOW SCORING AND SCHEDULED INGESTION (2026-10-14)
+---------------------------------------------------
+Stands in for the bank-side integration without building one.
+  * app/scoring.py: score_transaction. Active rules (baseline) decide
+    flag/allow; approved catalog rules run in shadow mode and are reported
+    but never change the decision (guardrail 13 unchanged).
+  * create_demo_feed in data.py: fresh synthetic transactions from the same
+    per-pattern distributions as card-scenario-v2 but an independent random
+    stream; never dataset records. Fraud over-represented (~35%) for demos.
+    The generator was refactored into _card_scenario_row; card-scenario-v2
+    is byte-identical (SHA-256 of all records checked before and after).
+  * POST /api/v1/transactions/score and /transactions/simulate; labels are
+    stripped before scoring.
+  * POST /api/v1/ingestion/run for Cloud Scheduler, protected by
+    RULEPILOT_INGEST_TOKEN (X-RulePilot-Ingest-Token, constant-time compare).
+    Investigates at most one curated advisory per call that has no live or
+    scheduled run for its current SHA-256; stored with origin "scheduled".
+  * UI: new Transaction monitor view (#monitor). Investigations banner shows
+    the latest human decision once reviewed; scheduled runs labelled.
+  * Local check: 20-transaction batch, baseline caught 2 of 11 synthetic
+    frauds; after approving AGT-a5193d19-3, 7 more were caught only in shadow
+    with all active decisions unchanged.
+
+
 VERIFICATION RESULTS (2026-10-14)
 ---------------------------------
-  * Backend: 82 pytest tests passed (36 at M2B).
-  * Frontend: 10 Vitest tests passed (5 at M2B); tsc and Vite build passed.
+  * Backend: 96 pytest tests passed (82 at M4, 36 at M2B).
+  * Frontend: 13 Vitest tests passed (10 at M4, 5 at M2B); tsc and Vite
+    build passed.
+  * Production-mode run (FastAPI serving the built dashboard) and the
+    Firestore emulator: backend/scripts/smoke_check.py passes; state survives
+    restart. Headless Chrome: no console errors at 1440 px and 400 px.
   * git diff --check passed; secret scan of source, fixtures and recordings
     found no credentials.
   * One dependency deprecation warning (Starlette TestClient/httpx).

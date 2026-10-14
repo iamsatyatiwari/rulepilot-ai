@@ -39,8 +39,9 @@ First vertical slice: payment-card fraud. Account takeover, scams, and AML are f
 | M3 T8 Cloud Run deployment | Dockerfile ready; needs GCP project |
 | M4 continuous learning: reviewed rule catalog, review-history tool, Firestore storage | Done (L1–L3), verified live |
 | T9 README, deck, 3-minute video | Not started |
+| Shadow scoring (mock bank feed) and scheduled ingestion endpoint | Done locally, not yet deployed |
 
-Latest verification: 82 backend tests, 10 frontend tests, type check and build passing. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
+Latest verification: 96 backend tests, 13 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
 
 ## Key decisions (do not reverse without a demonstrated need)
 

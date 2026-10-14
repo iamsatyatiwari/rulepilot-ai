@@ -140,7 +140,7 @@ export type InvestigationStatus =
 export type InvestigationReport = {
   investigation_id: string
   created_at: string
-  origin: 'live' | 'recorded'
+  origin: 'live' | 'recorded' | 'scheduled'
   status: InvestigationStatus
   headline: string
   advisory: AdvisorySummary
@@ -200,7 +200,7 @@ export type StoredInvestigation = { report: InvestigationReport; reviews: Review
 export type InvestigationSummary = {
   investigation_id: string
   created_at: string
-  origin: 'live' | 'recorded'
+  origin: 'live' | 'recorded' | 'scheduled'
   status: InvestigationStatus
   advisory_title: string
   advisory_id: string
@@ -220,6 +220,54 @@ export type CatalogEntry = {
 }
 
 export type RuleCatalog = { active: Rule[]; approved_not_active: CatalogEntry[] }
+
+export type Transaction = {
+  transaction_id?: string | null
+  amount?: number | null
+  account_age_days?: number | null
+  transactions_24h?: number | null
+  distance_from_home_km?: number | null
+  transactions_1h?: number | null
+  declined_attempts_24h?: number | null
+  card_present?: number | null
+}
+
+export type RuleVerdict = {
+  rule_id: string
+  name: string
+  version: number
+  flagged: boolean
+  missing_fields: string[]
+  investigation_id: string | null
+  technique: string | null
+}
+
+export type TransactionScore = {
+  transaction_id: string | null
+  decision: 'flag' | 'allow'
+  decided_by: string[]
+  active_rules: RuleVerdict[]
+  shadow_rules: RuleVerdict[]
+  shadow_flagged_by: string[]
+  caught_only_in_shadow: boolean
+  note: string
+}
+
+export type FeedItem = { transaction: Transaction; synthetic_fraud: boolean; score: TransactionScore }
+
+export type FeedSummary = {
+  transactions: number
+  synthetic_fraud: number
+  flagged_by_active_rules: number
+  fraud_caught_by_active_rules: number
+  fraud_caught_only_in_shadow: number
+  fraud_missed_by_all_rules: number
+  legitimate_flagged_by_active_rules: number
+  legitimate_flagged_only_in_shadow: number
+  shadow_rules: number
+}
+
+export type SimulateResponse = { seed: number; disclaimer: string; summary: FeedSummary; items: FeedItem[] }
 
 export type CustomAdvisory = { title: string; publisher: string; source_url: string; text: string }
 

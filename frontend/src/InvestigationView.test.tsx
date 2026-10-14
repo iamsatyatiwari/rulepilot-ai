@@ -71,7 +71,7 @@ function report(overrides: Record<string, unknown> = {}) {
     created_at: '2026-10-14T10:00:00Z',
     origin: 'live',
     status: 'pending_human_review',
-    headline: 'Adding AGT-abc12345-1 changed held-out rule-set recall by +51.3 pp.',
+    headline: 'Adding AGT-abc12345-1 changed held-out rule-set recall by +51.3 pp. Awaiting human review.',
     advisory,
     dataset: { dataset_id: 'card-scenario-v2', version: '2.0.0', generator_seed: 2027, size: 6000, synthetic: true, description: 'd', limitations: 'Fully synthetic.' },
     seed: 41,
@@ -192,6 +192,11 @@ describe('Intelligence investigations workspace', () => {
     const history = await screen.findByRole('list', { name: 'Review history' })
     expect(within(history).getByText('Approved for further testing')).toBeInTheDocument()
     expect(within(history).getByText(/activation: not activated/)).toBeInTheDocument()
+
+    const banner = document.querySelector('.report-banner') as HTMLElement
+    await within(banner).findByText('Approved for further testing')
+    expect(within(banner).queryByText('Pending human review')).not.toBeInTheDocument()
+    expect(banner).not.toHaveTextContent(/Awaiting human review/)
 
     const catalog = screen.getByRole('region', { name: 'Reviewed rule catalog' })
     expect(await within(catalog).findByText('Approved · not active')).toBeInTheDocument()

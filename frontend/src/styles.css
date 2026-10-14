@@ -525,3 +525,40 @@ button.nav-item:hover:not(.active) { background: #f6f9f7; }
 .state-approved { color: #23794f; background: #e3f2e8; }
 .catalog-provenance { margin: 6px 0 0; color: #6f8277; font-size: 11px; line-height: 1.5; }
 @media (max-width: 560px) { .catalog-list li { grid-template-columns: 1fr; } }
+
+/* Review decision shown in the report banner once a human has decided. */
+.pill-review-approve { background: #b9e3cb; }
+.pill-review-reject { background: #f0b9a9; }
+.pill-review-request_changes { background: #f4d79f; }
+.origin-scheduled { color: #1f3d5a; background: #bfd6ea; }
+
+/* Transaction monitor */
+.monitor-strip { grid-template-columns: repeat(6, minmax(0, 1fr)); margin-bottom: 14px; }
+.monitor-strip .strip-highlight { background: #eef8f1; border-color: #b9e3cb; }
+.catalog-panel + .monitor-strip { margin-top: 14px; }
+.feed-table td { color: #4a5d52; font-size: 11px; white-space: nowrap; }
+.feed-row.row-shadow { background: #f1faf4; }
+.feed-row.row-missed { background: #fdf6f2; }
+.verdict { display: inline-block; padding: 3px 7px; border-radius: 4px; font: 700 10px Consolas, monospace; text-transform: uppercase; }
+.verdict-flag { color: #8f3f2c; background: #fae3dc; }
+.verdict-allow { color: #4c6b58; background: #e9f1ec; }
+.verdict-shadow { color: #1e6a45; background: #d8f0e1; }
+.outcome-tag { display: inline-block; padding: 3px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+.tone-shadow { color: #1b6b43; background: #cdebd9; }
+.tone-caught { color: #44698a; background: #e4eef6; }
+.tone-missed { color: #9a4b35; background: #f8e2da; }
+.tone-false-alarm { color: #8a6a2f; background: #f8efd9; }
+.tone-quiet { color: #8b9991; background: transparent; }
+.preset-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.field-grid label { display: grid; gap: 5px; color: #66776d; font-size: 11px; font-weight: 600; }
+.field-grid input { width: 100%; padding: 8px 10px; color: #2f4438; background: #fbfcfb; border: 1px solid #dbe4de; border-radius: 6px; font-family: inherit; font-size: 12px; }
+.verdict-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.verdict-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px 10px; background: #f7f9f7; border-radius: 6px; font-size: 11px; }
+.verdict-list small { color: #8b9991; }
+@media (max-width: 900px) {
+  .monitor-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .field-grid { grid-template-columns: 1fr; }
+}

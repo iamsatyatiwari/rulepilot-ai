@@ -124,6 +124,7 @@ class GovernanceStore:
                 "dataset_id": report.dataset.dataset_id,
                 "dataset_version": report.dataset.version,
                 "seed": report.seed,
+                "origin": report.origin,
                 "model": report.model_run.model,
                 "status": report.status,
                 "tool_calls": len(report.trace),
@@ -146,6 +147,14 @@ class GovernanceStore:
             if item is not None:
                 items[item.report.investigation_id] = item
         return sorted(items.values(), key=lambda item: item.report.created_at, reverse=True)
+
+    def investigated_sources(self) -> set[tuple[str, str]]:
+        """(advisory_id, content SHA-256) pairs with a stored live or scheduled run; recorded demos excluded."""
+        return {
+            (item.report.advisory.advisory_id, item.report.advisory.content_sha256)
+            for item in self._all()
+            if item.report.origin != "recorded"
+        }
 
     def list(self) -> list[InvestigationSummary]:
         return [

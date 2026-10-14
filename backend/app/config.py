@@ -41,6 +41,11 @@ class Settings:
             return bool(os.environ.get("GOOGLE_CLOUD_PROJECT"))
         return bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
 
+    @property
+    def ingest_token(self) -> str | None:
+        """Shared secret that Cloud Scheduler sends to trigger ingestion; unset disables it."""
+        return os.environ.get("RULEPILOT_INGEST_TOKEN") or None
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
