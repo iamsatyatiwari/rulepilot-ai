@@ -174,18 +174,27 @@ PAYMENTS DATASET V3 AND GOLDEN-SET EVALUATION (2026-10-14)
   * app/golden.py + scripts/golden_eval.py (task L4): four golden cases
     (advisory x dataset) checked for status, coverage, guardrails, verified
     quotes, held-out discipline, and relevant rule fields. Held-out metric
-    values are never pass/fail criteria. Recorded runs pass their v2 cases
-    offline (tests/test_golden.py).
+    values are never pass/fail criteria. Recorded runs pass their golden
+    cases offline (tests/test_golden.py).
   * Live golden run (gemini-3.5-flash-lite fallback; other models 429):
     card-testing-payments-v3 and sim-swap-payments-v3 both PASS.
-  * Known data-design limitation: ~79% of injected takeovers have amount
-    >= 1,500 (training split), so the baseline already catches most of them
-    and a SIM-swap rule adds little held-out recall.
+  * Takeover amounts were first drawn uniformly from 400-6,000; on the
+    training split ~79% were >= 1,500, so the baseline already caught most
+    and a SIM-swap rule added ~3 pp. Redrawn (15 Oct) so ~80% stay under
+    1,500 ("below review limits"); judged on train/validation only: baseline
+    OR SIM-swap rule raises validation recall from 33% to 45-48%.
+  * Recorded demo runs refreshed live on v3 (15 Oct, gemini-3.5-flash-lite;
+    3.8/3.6/3.5-flash returned 429/503): card testing pending review
+    (held-out recall +5.4 pp, FPR +0.21 pp, 4/4 quotes); SIM swap testable,
+    pending review (+10.8 pp, FPR +0.83 pp, 3/3 quotes); after approving
+    the card-testing rule, a re-run returned covered_by_existing_rules
+    (2 reference rules, 1 prior review). The v2 SIM-swap not_testable run
+    is kept; the v2 card-testing recordings were removed.
 
 
 VERIFICATION RESULTS (2026-10-14)
 ---------------------------------
-  * Backend: 110 pytest tests passed (96 before v3, 82 at M4, 36 at M2B).
+  * Backend: 112 pytest tests passed (96 before v3, 82 at M4, 36 at M2B).
   * Frontend: 14 Vitest tests passed (10 at M4, 5 at M2B); tsc and Vite
     build passed.
   * Production-mode run (FastAPI serving the built dashboard) and the

@@ -42,7 +42,7 @@ First vertical slice: payment-card fraud. Account takeover, scams, and AML are f
 | Shadow scoring (mock bank feed) and scheduled ingestion endpoint | Done locally, not yet deployed |
 | `payments-scenario-v3` dataset (30k rows, 12 fields) and golden-set evaluation (L4) | Done locally; live golden run passes on v3 |
 
-Latest verification: 110 backend tests, 14 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
+Latest verification: 112 backend tests, 14 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
 
 ## Key decisions (do not reverse without a demonstrated need)
 

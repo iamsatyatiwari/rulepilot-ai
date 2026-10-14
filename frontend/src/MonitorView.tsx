@@ -43,7 +43,7 @@ const FIELDS: { key: keyof Transaction; label: string; step: string }[] = [
 
 const PRESETS: Record<string, Transaction> = {
   'Card-testing burst': { amount: 3.5, transactions_1h: 9, transactions_24h: 14, declined_attempts_24h: 6, card_present: 0, distance_from_home_km: 40, account_age_days: 420, hour_of_day: 3, new_device: 1, days_since_sim_change: 640, credential_resets_24h: 0, new_payee: 1 },
-  'SIM-swap takeover': { amount: 2850, transactions_1h: 1, transactions_24h: 2, declined_attempts_24h: 0, card_present: 0, distance_from_home_km: 35, account_age_days: 2100, hour_of_day: 2, new_device: 1, days_since_sim_change: 1, credential_resets_24h: 2, new_payee: 1 },
+  'SIM-swap takeover': { amount: 1240, transactions_1h: 1, transactions_24h: 2, declined_attempts_24h: 0, card_present: 0, distance_from_home_km: 35, account_age_days: 2100, hour_of_day: 2, new_device: 1, days_since_sim_change: 1, credential_resets_24h: 2, new_payee: 1 },
   'Large purchase abroad': { amount: 2400, transactions_1h: 1, transactions_24h: 2, declined_attempts_24h: 0, card_present: 1, distance_from_home_km: 1800, account_age_days: 900, hour_of_day: 15, new_device: 0, days_since_sim_change: 410, credential_resets_24h: 0, new_payee: 1 },
   'Everyday purchase': { amount: 42.1, transactions_1h: 0, transactions_24h: 2, declined_attempts_24h: 0, card_present: 1, distance_from_home_km: 6, account_age_days: 1500, hour_of_day: 12, new_device: 0, days_since_sim_change: 980, credential_resets_24h: 0, new_payee: 0 },
 }

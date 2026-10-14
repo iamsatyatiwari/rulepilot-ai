@@ -35,7 +35,11 @@ def test_golden_cases_reference_real_advisories_and_datasets():
 
 @pytest.mark.parametrize(
     ("file", "case_id"),
-    [("card-testing-live-2026-10-14.json", "card-testing-card-v2"), ("sim-swap-live-2026-10-14.json", "sim-swap-card-v2")],
+    [
+        ("card-testing-live-2026-10-15.json", "card-testing-payments-v3"),
+        ("sim-swap-live-v3-2026-10-15.json", "sim-swap-payments-v3"),
+        ("sim-swap-live-2026-10-14.json", "sim-swap-card-v2"),
+    ],
 )
 def test_recorded_live_runs_pass_their_golden_case(file, case_id):
     assert check_report(CASES[case_id], recorded(file)) == []
@@ -57,6 +61,13 @@ def test_checker_reports_wrong_status_and_overreach():
     failures = check_report(CASES["sim-swap-payments-v3"], report)
     assert any("advisory" in failure for failure in failures)
     assert any("selected rule uses" in failure for failure in failures)
+
+
+def test_recorded_covered_run_compares_against_the_approved_rule():
+    report = recorded("card-testing-covered-after-approval-2026-10-15.json")
+    assert report.status == "covered_by_existing_rules"
+    assert len(report.reference_rules) == 2 and report.review_history_used == 1
+    assert report.holdout is None and all(check.passed for check in report.guardrails)
 
 
 def test_checker_flags_a_held_out_run_without_review_status():

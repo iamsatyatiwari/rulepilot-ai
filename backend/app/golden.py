@@ -66,7 +66,7 @@ GOLDEN_CASES: tuple[GoldenCase, ...] = (
         # The advisory also mentions signals we do not hold (e.g. IP address), so partial is correct too.
         expected_coverage=["testable", "partially_testable"],
         relevant_fields=["amount", "transactions_1h", "transactions_24h", "declined_attempts_24h", "card_present"],
-        note="Matches the recorded demo run.",
+        note="Matches the original v2 live run (14 Oct).",
     ),
 )
 

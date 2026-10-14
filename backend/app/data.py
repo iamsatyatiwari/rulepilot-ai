@@ -164,8 +164,9 @@ def create_payments_scenario_dataset(
 
     About 3.4% of records are fraud: high-value misuse (~1.2%), injected card
     testing (~1.2%), and an injected SIM-swap account-takeover pattern (~1.0%:
-    a recent SIM change, a new device, credential resets, and a sizeable
-    card-not-present payment to a new payee). Legitimate look-alikes are mixed
+    a recent SIM change, a new device, credential resets, and a
+    card-not-present payment to a new payee, mostly kept under 1,500 so it
+    stays below typical review limits). Legitimate look-alikes are mixed
     in for every mode (small-value bursts, travel purchases, customers who just
     replaced their phone, first payments to a new payee) so no rule is perfect.
     The injected patterns exist so the workflow can show detectable coverage
@@ -194,7 +195,11 @@ def _payments_row(randomizer: random.Random, pattern: PaymentsPattern, transacti
     if pattern == "account_takeover":
         # Injected synthetic SIM-swap account takeover: the attacker ports the
         # victim's number, resets credentials, and pays out from a new device.
-        amount = round(randomizer.uniform(400, 6000), 2)
+        # Most payouts stay under typical review limits; a minority are large.
+        if randomizer.random() < 0.8:
+            amount = round(randomizer.uniform(300, 1450), 2)
+        else:
+            amount = round(randomizer.uniform(1500, 6000), 2)
         account_age_days = randomizer.randint(90, 3600)
         transactions_1h = randomizer.randint(0, 2)
         transactions_24h = transactions_1h + randomizer.randint(0, 3)
