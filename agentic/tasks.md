@@ -25,7 +25,8 @@ Status values: `done`, `in progress`, `todo`, `deferred`.
 | L2 | `get_review_history` tool: prior decisions and comments as untrusted data | done |
 | L3 | Firestore-backed `GovernanceStore` for Cloud Run persistence | done (fake-client tested; verify on GCP at deploy) |
 | L4 | Golden-set evaluation script for prompt/model changes | todo |
-| L5 | Scheduled ingestion (Cloud Scheduler + Cloud Run Job) | deferred |
+| L5 | Scheduled ingestion: token-protected `/ingestion/run` for Cloud Scheduler | done (local); create the Scheduler job at deploy |
+| L7 | Shadow scoring: mock bank feed, `/transactions/score` and `/transactions/simulate`, Transaction monitor UI | done |
 | L6 | Re-backtest approved rules on new data windows (drift) | deferred |
 
 ## Deferred beyond the prototype

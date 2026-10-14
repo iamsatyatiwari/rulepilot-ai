@@ -7,5 +7,6 @@ All project context lives in [`agentic/`](agentic/README.md). Before making chan
 3. Use [`agentic/skills.md`](agentic/skills.md) for procedures (setup, checks, adding tools or advisories, deployment).
 4. Check [`agentic/tasks.md`](agentic/tasks.md) for what to work on next.
 5. Frontend work: [`agentic/ui-guide.md`](agentic/ui-guide.md).
+6. **Resume in-flight work:** read [`agentic/session-log.md`](agentic/session-log.md) — current handoff, branch, next step. Update its "Current handoff" and add a "Log" entry before ending a session.
 
 Before finishing any change, run the checks in skills.md skill 2 and update the docs listed in the definition of done.

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StrictStr, model_validator
 
 from app.agent.orchestrator import InvestigationReport, run_investigation
@@ -33,6 +34,7 @@ from app.storage import create_backend
 
 MAX_CUSTOM_ADVISORY_CHARS = 8_000
 MAX_CONCURRENT_INVESTIGATIONS = 2
+MAX_INGEST_PER_RUN = 1
 RECORDED_DIR = Path(__file__).parent / "intel" / "recorded"
 
 router = APIRouter(prefix="/api/v1")
@@ -198,3 +200,56 @@ def rule_catalog(store: GovernanceStore = Depends(get_store)) -> RuleCatalogResp
 @router.get("/audit", response_model=list[AuditEvent], tags=["governance"])
 def audit_log(investigation_id: str | None = None, store: GovernanceStore = Depends(get_store)) -> list[AuditEvent]:
     return store.audit(investigation_id)
+
+
+class IngestionResult(BaseModel):
+    investigated: list[InvestigationSummary]
+    already_investigated: list[str]
+    remaining: list[str]
+
+
+@router.post("/ingestion/run", response_model=IngestionResult, tags=["intelligence"])
+async def run_ingestion(
+    settings: Settings = Depends(get_settings),
+    store: GovernanceStore = Depends(get_store),
+    x_rulepilot_ingest_token: Annotated[str | None, Header()] = None,
+) -> IngestionResult:
+    """Scheduled sweep (Cloud Scheduler): investigate curated advisories with no live run yet.
+
+    An advisory counts as investigated when a live or scheduled run exists for
+    the same content SHA-256, so an edited advisory is investigated again. At
+    most one advisory is processed per call to keep each request bounded.
+    """
+    expected = settings.ingest_token
+    if expected is None:
+        raise HTTPException(status_code=503, detail="scheduled ingestion is not configured on the server")
+    if not hmac.compare_digest((x_rulepilot_ingest_token or "").encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="invalid ingestion token")
+    if not settings.gemini_configured:
+        raise HTTPException(status_code=503, detail="Gemini is not configured on the server")
+
+    done = store.investigated_sources()
+    advisories = list(load_curated_advisories().values())
+    already = [a.advisory_id for a in advisories if (a.advisory_id, a.content_sha256) in done]
+    pending = [a for a in advisories if a.advisory_id not in already]
+    investigated: list[InvestigationSummary] = []
+    for advisory in pending[:MAX_INGEST_PER_RUN]:
+        if _run_slots.locked():
+            break
+        async with _run_slots:
+            report = await run_investigation(
+                advisory,
+                SCENARIO_DATASET_ID,
+                DEFAULT_SPLIT_SEED,
+                settings,
+                approved_rules=store.approved_rules(),
+                review_history=store.review_history(),
+            )
+        store.add(report.model_copy(update={"origin": "scheduled"}))
+        investigated.extend(s for s in store.list() if s.investigation_id == report.investigation_id)
+    processed = {s.advisory_id for s in investigated}
+    return IngestionResult(
+        investigated=investigated,
+        already_investigated=already,
+        remaining=[a.advisory_id for a in pending if a.advisory_id not in processed],
+    )

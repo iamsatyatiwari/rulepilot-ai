@@ -8,6 +8,7 @@
 | Agent orchestration | One ADK agent, prompt, retries and fallback, deterministic post-checks | `backend/app/agent/` |
 | Deterministic engine | Rule schema, evaluation, metrics, datasets, splits, discovery, backtests | `backend/app/rules/`, `evaluation.py`, `data.py`, `datasets.py`, `discovery.py`, `backtest.py` |
 | Governance | Investigation store, review decisions, reviewed rule catalog, review history, audit log | `backend/app/governance.py`, `backend/app/storage.py` |
+| Transaction scoring (mock bank side) | Score one transaction or a mock feed: active rules decide, approved rules run in shadow | `backend/app/scoring.py`, `backend/app/transactions_api.py`, `create_demo_feed` in `data.py` |
 | HTTP | Versioned API, static dashboard in production | `backend/app/main.py`, `api.py`, `investigations_api.py` |
 | UI | Investigations workspace and rule-engine view | `frontend/src/` |
 
@@ -61,6 +62,8 @@ sequenceDiagram
 | `intel/recorded/*.json` | Real past runs shown as "recorded" |
 | `governance.py` | `GovernanceStore` (investigations, reviews, `catalog()`, `approved_rules()`, `review_history()`, audit) |
 | `storage.py` | `DocumentBackend`: `LocalJsonBackend` and `FirestoreBackend` (records stored as JSON strings) |
+| `scoring.py` | `score_transaction` — active-rule decision plus shadow verdicts of approved rules |
+| `transactions_api.py` | `/transactions/score`, `/transactions/simulate` (mock bank feed) |
 | `config.py` | Environment settings; loads `backend/.env` |
 
 ## API reference (`/api/v1`)
@@ -81,10 +84,13 @@ sequenceDiagram
 | POST | `/investigations/{id}/review` | `{decision, reviewer, comment}` |
 | GET | `/rule-catalog` | Active baseline + approved (not active) rules with provenance |
 | GET | `/audit` | Audit events, optional `investigation_id` |
+| POST | `/transactions/score` | `{transaction}` → active-rule decision + shadow verdicts; any supplied label is ignored |
+| POST | `/transactions/simulate` | `{count ≤ 50, seed}` → mock bank feed of fresh synthetic transactions, each scored, plus a summary |
+| POST | `/ingestion/run` | Scheduled sweep (Cloud Scheduler). Header `X-RulePilot-Ingest-Token`. Investigates at most one curated advisory with no live/scheduled run for its current SHA-256 |
 
 `/health` is outside the prefix. Interactive docs: `http://127.0.0.1:8000/docs`.
 
-Status codes used by investigations: 404 unknown advisory, 409 nothing to review, 422 invalid input, 429 capacity busy, 503 Gemini not configured.
+Status codes used by investigations: 404 unknown advisory, 409 nothing to review, 422 invalid input, 429 capacity busy, 503 Gemini not configured. Ingestion adds 401 bad token and 503 when `RULEPILOT_INGEST_TOKEN` is unset.
 
 ## Configuration (`backend/.env`, see `.env.example`)
 
@@ -101,6 +107,7 @@ Status codes used by investigations: 404 unknown advisory, 409 nothing to review
 | `GOOGLE_CLOUD_PROJECT` | — | Firestore project (with `RULEPILOT_STORE=firestore`) |
 | `RULEPILOT_DATA_DIR` | `backend/.rulepilot_data` | Local store and audit log |
 | `RULEPILOT_STATIC_DIR` | unset | Built dashboard path; set in Docker |
+| `RULEPILOT_INGEST_TOKEN` | unset | Secret for `/ingestion/run`; unset disables it (secret) |
 
 Frontend: `VITE_API_BASE_URL` (dev default `http://localhost:8000`; production builds use the same origin).
 
@@ -113,6 +120,16 @@ The model is never retrained. The *system* learns through reviewed state:
 3. `get_review_history` gives the agent the last 10 decisions (decision, comment ≤ 300 chars, conditions, held-out deltas) as untrusted data.
 4. If existing rules already detect the behaviour, the agent concludes `covered_by_existing_rules` and proposes nothing.
 5. A later reject or request-changes decision removes the rule from the catalog. Every step is audited.
+
+## Shadow scoring (mock bank integration)
+
+There is no real bank connection. `/transactions/simulate` stands in for one: it draws fresh transactions from the same per-pattern distributions as `card-scenario-v2` but from an independent random stream (`create_demo_feed`), never from any dataset split. Fraud is over-represented (~35%) so a short batch shows each pattern.
+
+Each transaction is scored with the label removed. **Active rules** (the baseline) make the `flag`/`allow` decision. **Approved rules** from the reviewed catalog are evaluated in *shadow mode*: their verdicts are reported (`shadow_flagged_by`, `caught_only_in_shadow`) but can never change the decision, so guardrail 13 holds. The summary compares against the synthetic labels afterwards.
+
+## Scheduled ingestion
+
+Cloud Scheduler calls `POST /api/v1/ingestion/run` with the shared token. Each call investigates at most one curated advisory that has no live or scheduled run for its current content hash, so adding or editing a file in `intel/advisories/` triggers a new investigation on the next tick. Recorded demo runs do not count. Runs are stored with `origin: "scheduled"` and audited like any other.
 
 ## Deployment shape
 

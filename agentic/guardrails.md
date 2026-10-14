@@ -22,7 +22,7 @@ These are product requirements, not style preferences. A change that breaks one 
 ## Governance
 
 12. Candidate rules are always created as `draft` by `rulepilot-agent`.
-13. Human approval is recorded separately and **never activates a rule**. `activation` stays `not_activated`.
+13. Human approval is recorded separately and **never activates a rule**. `activation` stays `not_activated`. Transaction scoring may evaluate approved rules only in shadow mode: their verdicts are reported but never change the decision.
 14. The audit log is append-only.
 15. Approved rules enter the reviewed catalog as inactive; a later reject or request-changes removes them. The agent may read the catalog and review history but can never write to either.
 

@@ -99,7 +99,22 @@ gcloud run deploy rulepilot-ai --source . --region asia-southeast1 \
 
 Grant the runtime service account `roles/secretmanager.secretAccessor` on the secret and `roles/datastore.user` on the project if deploy or the first review reports access denied.
 
-**Verify:** `/health`, `/api/v1/agent/status` shows `configured: true`, the dashboard loads at `/`, one live investigation completes.
+**Scheduled ingestion (the cron job):**
+
+```bash
+TOKEN=$(openssl rand -hex 24)
+printf '%s' "$TOKEN" | gcloud secrets create ingest-token --data-file=-
+gcloud run services update rulepilot-ai --region asia-southeast1 \
+  --update-secrets RULEPILOT_INGEST_TOKEN=ingest-token:latest
+gcloud services enable cloudscheduler.googleapis.com
+gcloud scheduler jobs create http rulepilot-ingest --location asia-southeast1 \
+  --schedule "0 */6 * * *" --http-method POST \
+  --uri "https://SERVICE_URL/api/v1/ingestion/run" \
+  --headers "X-RulePilot-Ingest-Token=$TOKEN" --attempt-deadline 300s
+gcloud scheduler jobs run rulepilot-ingest --location asia-southeast1   # trigger once now
+```
+
+**Verify:** `/health`, `/api/v1/agent/status` shows `configured: true`, the dashboard loads at `/`, one live investigation completes, `backend/scripts/smoke_check.py https://SERVICE_URL` passes (without `--review` on the demo deployment), and the scheduler run appears in History as *scheduled*.
 
 ## 10. Demonstrate the learning loop
 
@@ -108,7 +123,14 @@ Grant the runtime service account `roles/secretmanager.secretAccessor` on the se
 3. Investigate the same advisory again. Expect the banner *Covered by existing rules*, "compared against 2 reviewed rule(s) · 1 prior review(s)", and `get_review_history` in the agent trace.
 4. To reset, record *Reject* on the first investigation (removes it from the catalog) or clear `backend/.rulepilot_data` locally.
 
-## 11. Diagnose agent failures
+## 11. Demonstrate shadow scoring (mock bank feed)
+
+1. Open **Transaction monitor** (`#monitor`). With no approved rules, click **Stream 20 transactions**: the baseline misses most synthetic card-testing fraud (red *Missed by all rules* rows).
+2. Approve the card-testing candidate in **Investigations** (skill 10 step 2).
+3. Back in the monitor, stream again. Rows marked **Caught only by approved rule** are fraud the approved rule would catch; the *Decision* column is unchanged because approved rules run in shadow.
+4. Use **Score a transaction → Card-testing burst** to show one transaction: active *Allow*, shadow *Would flag*.
+
+## 12. Diagnose agent failures
 
 | Symptom in `model_run.errors` | Meaning | Action |
 | --- | --- | --- |

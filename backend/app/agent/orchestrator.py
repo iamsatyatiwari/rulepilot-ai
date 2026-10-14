@@ -85,7 +85,7 @@ class InvestigationReport(BaseModel):
 
     investigation_id: str
     created_at: datetime
-    origin: Literal["live", "recorded"] = "live"
+    origin: Literal["live", "recorded", "scheduled"] = "live"
     status: InvestigationStatus
     headline: str
     advisory: AdvisorySummary
