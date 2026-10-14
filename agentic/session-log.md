@@ -13,7 +13,7 @@ This file carries working state from one AI-assistant session (context window) t
 
 ## Current handoff
 
-- **Branches:** `feat/shadow-scoring-ingestion` = draft→ready PR #1 (https://github.com/iamsatyatiwari/rulepilot-ai/pull/1), **not merged** — the merge command was blocked by the permission classifier; the user merges it on GitHub or allows `gh pr merge`. `feat/dataset-v3` branches from it (local commit, not pushed) — open a PR into `main` after #1 merges.
+- **Branches:** PR #1 (shadow scoring + ingestion) **merged into `main`** by the user on 14 Oct (`aba1231`). `feat/dataset-v3` is one commit ahead of `main`; pushed with draft PR #2 into `main`, awaiting user review — do not mark ready or merge without the user.
 - **Phase:** local development before Cloud Run deploy. Deadline 18 Oct 2026, team target 17 Oct — see `PROJECT_STATUS.md` (stale: still says the M3 branch is unmerged and 82 tests; refresh with the README rewrite).
 - **Done 14 Oct (feat/dataset-v3):** `payments-scenario-v3` (30k rows, 202 held-out fraud vs 39 on v2), 5 new fields, injected SIM-swap takeover, default for investigations/ingestion; mock feed and monitor UI updated; golden set (L4) `app/golden.py` + `scripts/golden_eval.py`. 110 backend / 14 frontend tests, tsc, build pass. Live golden run: both v3 cases PASS (flash-lite fallback).
 - **Open decision for the user:** ~79% of injected takeovers are ≥ 1,500 (training split), so the baseline already catches most; a SIM-swap rule adds only ~3 pp held-out recall. Option: draw takeover amounts mostly below the baseline threshold (realistic "stay under limits" behaviour), judged on train/validation only, then re-run the golden set.
@@ -22,7 +22,7 @@ This file carries working state from one AI-assistant session (context window) t
 - **Untracked `requirements.txt` at repo root:** VS Code Docker scaffold (fastapi 0.109, gunicorn) that conflicts with `backend/requirements-lock.txt`; left uncommitted, suggest deleting.
 - **Repo location:** `~/dev/rulepilot-ai` (moved off iCloud). If `pytest` ever reports far too many tests, look for `* 2.py` copies.
 - **GitHub:** `gh` logged in as `shuklapiyush113` (collaborator, write). Repo is public.
-- **Next steps:** user merges PR #1 → push `feat/dataset-v3` + PR → decide the takeover-amount question → README rewrite + PROJECT_STATUS refresh → Cloud Run deploy (needs GCP project ID + billing) → deck → video.
+- **Next steps:** user reviews draft PR #2 → decide the takeover-amount question → README rewrite + PROJECT_STATUS refresh → Cloud Run deploy (needs GCP project ID + billing) → deck → video.
 
 ## Local environment (macOS)
 
@@ -56,7 +56,7 @@ git diff --check
 ## Log
 
 ### 2026-10-14 — dataset v3 and golden set
-- PR #1 merge blocked by the permission classifier; built on `feat/dataset-v3` instead.
+- PR #1 merge was blocked by the permission classifier; the user merged it on GitHub. Built on `feat/dataset-v3`, pushed as draft PR #2.
 - Added v3 dataset, new fields, SIM-swap takeover pattern, feed/monitor updates, golden-set module, script and tests; docs updated (architecture, skills 6/7, ui-guide, context, tasks L4/L8, IMPLEMENTATION_SUMMARY).
 - Live golden run passes on v3; found that the baseline already catches most injected takeovers (open decision above).
 
