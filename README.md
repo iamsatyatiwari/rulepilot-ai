@@ -1,146 +1,152 @@
-# RulePilot AI
+# RulePilot AI — Continuous Financial Rule Intelligence
 
-RulePilot AI is a foundation for continuous financial rule intelligence. Milestone 2A adds a small deterministic rule engine, transparent metrics, a fixed synthetic fixture, a baseline, candidate evaluation, and a bounded threshold-discovery experiment. Milestone 2B connects the React dashboard to those APIs for data-backed discovery, held-out backtesting, false-negative evidence, and proposal review status. The work is local and inspectable: it does not call an AI service or execute generated code.
+**Fraud techniques change faster than detection rules.** RulePilot AI turns new financial-crime intelligence into tested, governed rule proposals. A Gemini agent reads a fraud advisory and finds gaps in the bank's existing rules. It then proposes candidate rules. Deterministic code measures every claim, and a human reviewer makes the final decision.
+
+> **Live demo:** _URL added after the Cloud Run deployment._
+> Built for the Google Cloud AI Builder Cup 2026, BFSI theme: *Intelligent Risk, Fraud & Financial Experiences*.
+> All transaction data in this repository is **synthetic**. Metrics demonstrate the workflow and are not real-world detection rates.
+
+```
+advisory → structured findings → coverage-gap check → candidate rules
+        → validation metrics → single held-out test → human review → audit
+```
+
+- **Gemini proposes.** A single Google ADK agent reads the advisory and works through a small set of bounded tools.
+- **Code measures.** The rule engine validates every rule and computes every metric. The model never reports numbers itself.
+- **Humans decide.** An approval is recorded, and the rule joins the reviewed catalog but is **never activated automatically**.
+
+## What it does
+
+| Scenario | What happens |
+| --- | --- |
+| **Card testing** advisory | The agent finds that the baseline (amount ≥ 1,500) misses small card-not-present bursts. It proposes up to three rules, checks them on the validation split, and the orchestrator tests the chosen rule **once** on the held-out split. Recorded live run: held-out recall **+5.4 pp**. |
+| **SIM swap** advisory (FBI IC3) | On `payments-scenario-v3`, the SIM-change, device, credential-reset and payee fields make the advisory testable. Recorded run: a rule on a recent SIM change adds **+10.8 pp** recall. On `card-scenario-v2`, which has none of these fields, the run ends with **not testable** and no rule is invented. |
+| Re-run after approval | Approved rules join the reference rule set and the agent reads earlier review decisions. If the behaviour is already covered, the result is **covered by existing rules**. This is governed learning; the model is never retrained. |
+| Transaction monitor | A mock bank feed scores fresh synthetic transactions. Active rules make the decision. Approved rules run in **shadow mode**: they show what they *would* catch but never change the decision. |
+| Scheduled ingestion | A token-protected endpoint lets Cloud Scheduler investigate new or changed advisories automatically. |
 
 ## Architecture
 
-- `backend/app/rules/models.py` defines strict Pydantic transaction and rule schemas. Ruleable fields come from metadata on the synthetic transaction schema. Unknown fields, extra properties, non-finite values, duplicate conditions, and unsupported operators are rejected.
-- `backend/app/rules/engine.py` evaluates only the six explicit comparison operators. It never uses `eval`, `exec`, shell commands, or generated Python. A malformed rule raises a Pydantic validation error; missing or invalid transaction features fail closed and return `false`.
-- `backend/app/evaluation.py` calculates the confusion matrix, precision, recall, false-positive rate, and counts. A zero denominator produces `0.0`; empty aligned inputs are valid.
-- `backend/app/data.py` deterministically generates 120 synthetic labeled transactions and reproducible stratified train, validation, and test splits. The synthetic outcomes come from a noisy feature-based risk process; they are illustrative, not real customer data or a calibrated fraud model.
-- `backend/app/baseline.py` defines the documented baseline: flag amount greater than or equal to 1,500 synthetic currency units. It is a comparison fixture, not a production recommendation.
-- `backend/app/discovery.py` derives at most eight thresholds per eligible numeric feature from training feature values. It evaluates non-degenerate rules with minimum support on training, selects by validation F1 (then precision, recall, and false-positive rate), and evaluates the selected candidate once on the held-out test records. The discovery selection function accepts only training and validation data; the test split is passed only to final reporting.
-- FastAPI endpoints are wired in `backend/app/api.py`; rule models, execution, metrics, data, and discovery remain usable without FastAPI.
-- The dashboard loads API health, the baseline catalog, and discovery/split information from the backend. Backtest comparisons and missed-fraud IDs come from the held-out backtest response. Only transaction IDs are displayed in the false-negative table.
-
-Candidates are returned as drafts with their exact condition and validation/test evidence. Candidate results are not guaranteed to outperform the baseline. Compare the reported held-out metrics and false positives; do not treat a result from the synthetic fixture as evidence about real payment traffic.
-
-## Rule JSON example
-
-```json
-{
-  "rule_id": "TEAM-AMOUNT-001",
-  "name": "High amount review",
-  "description": "Flags a transaction above the example threshold.",
-  "rationale": "Illustrates an explicit numeric condition for review.",
-  "conditions": [
-    { "field": "amount", "operator": "greater_than", "value": 1250 }
-  ],
-  "logical_operator": "and",
-  "status": "draft",
-  "version": 1,
-  "created_by": "analyst"
-}
+```mermaid
+flowchart LR
+    UI[React dashboard] -->|/api/v1| API[FastAPI on Cloud Run]
+    SCH[Cloud Scheduler] -->|/ingestion/run + token| API
+    API --> ORC[Orchestrator]
+    ORC --> AG[ADK agent<br/>Gemini]
+    AG --> TOOLS[6 bounded tools]
+    TOOLS --> ENG[Deterministic rule engine<br/>train + validation only]
+    ORC -->|held-out test, once| ENG
+    ORC --> GOV[(Governance store<br/>Firestore)]
+    API --> SCORE[Shadow scoring<br/>mock bank feed]
+    SCORE --> GOV
 ```
 
-Available fields: `amount`, `account_age_days`, `transactions_24h`, and `distance_from_home_km`. Available comparison operators: `greater_than`, `greater_than_or_equal`, `less_than`, `less_than_or_equal`, `equals`, and `not_equals`. Multiple conditions can use `and` or `or`. Status must be one of `draft`, `pending_review`, `approved`, or `rejected`. Rule IDs use letters, numbers, dots, underscores, and hyphens; IDs must be unique within a rule catalog. The baseline ID `RP-BASELINE-001` is reserved.
+| Layer | Code |
+| --- | --- |
+| Intelligence: curated advisories with source URL, date, rights note and SHA-256; pasted advisories up to 8,000 characters; verbatim quote checks | `backend/app/intel/` |
+| Agent: one ADK `LlmAgent` with 6 tools (rule catalog, review history, field coverage, training profile, candidate evaluation, final submission), retry and model fallback | `backend/app/agent/` |
+| Rule engine: strict Pydantic rule schema, 6 comparison operators, AND/OR, fail-closed evaluation, confusion-matrix metrics | `backend/app/rules/`, `evaluation.py`, `backtest.py` |
+| Data: versioned synthetic datasets with stratified 60/20/20 splits | `data.py`, `datasets.py` |
+| Governance: reviews, reviewed rule catalog, append-only audit log, local JSON or Firestore storage | `governance.py`, `storage.py` |
+| Shadow scoring and scheduled ingestion | `scoring.py`, `transactions_api.py`, `investigations_api.py` |
+| Dashboard: investigations workspace, transaction monitor, rule-engine view | `frontend/src/` |
 
-## API
+One Cloud Run service built from the root `Dockerfile` serves both the API and the dashboard.
 
-Run the backend as described below, then use `http://127.0.0.1:8000/docs` for the interactive schema and API explorer.
+## Safeguards
 
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| `GET` | `/` | API identity and health link |
-| `GET` | `/health` | Process health status |
-| `GET` | `/api/v1/rules` | List the documented baseline rule |
-| `POST` | `/api/v1/rules/evaluate` | Validate and evaluate a supplied rule on synthetic samples; returns IDs, predictions, and metrics, not transaction features |
-| `POST` | `/api/v1/backtests/run` | Compare a supplied candidate with the baseline on the same deterministic held-out test split |
-| `POST` | `/api/v1/rules/discover` | Generate thresholds from train, select on validation, then evaluate once on test |
+- **No code execution.** Rules are data validated against a schema. The agent cannot use network, file, shell, or database tools.
+- **Advisories are treated as untrusted input.** Advisory text and reviewer comments are delimited in the prompt, and every evidence quote is checked verbatim against the source.
+- **The agent's claims are re-checked in code.** Coverage is recomputed, and the selected rule must be one the agent actually evaluated. The status and headline are written by code, not by the model.
+- **Evaluation integrity.** The agent sees only training statistics and validation results. The held-out test runs once, triggered by the orchestrator. Prompts and data are never tuned on test results.
+- **Bounds.** At most 12 model calls, 120 seconds, 3 candidates and 3 conditions per rule, with an HTTP timeout on every model request.
+- **Governance.** Candidate rules are drafts. Approval never activates a rule. Every step is audited.
 
-Example PowerShell calls, from any directory with the backend running:
+## Data
 
-```powershell
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/v1/rules'
+| Dataset | Rows | Fraud | Notes |
+| --- | --- | --- | --- |
+| `synthetic-v1` | 120 | 41% | Small fixture for the rule-engine view |
+| `card-scenario-v2` | 6,000 | 3.2% | High-value misuse and an **injected** card-testing pattern, 7 fields |
+| `payments-scenario-v3` (default) | 30,000 | 3.3% | Adds an **injected** SIM-swap account-takeover pattern and 5 fields: `hour_of_day`, `new_device`, `days_since_sim_change`, `credential_resets_24h`, `new_payee`. Legitimate look-alikes exist for every fraud mode. The held-out split contains 202 fraud records. |
 
-$candidate = @{
-    rule_id = 'TEAM-AMOUNT-001'
-    name = 'High amount review'
-    description = 'Flags a transaction above the example threshold.'
-    rationale = 'Illustrates an explicit numeric condition for review.'
-    conditions = @(@{ field = 'amount'; operator = 'greater_than'; value = 1250 })
-    logical_operator = 'and'
-    status = 'draft'
-    version = 1
-    created_by = 'analyst'
-}
-$body = @{ candidate_rule = $candidate; seed = 41 } | ConvertTo-Json -Depth 10
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/v1/backtests/run' -Method Post -ContentType 'application/json' -Body $body
+The patterns are injected on purpose, so the workflow can show what a detected coverage gap looks like. They are disclosed everywhere they appear.
 
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/v1/rules/discover' -Method Post -ContentType 'application/json' -Body '{"seed":41}'
-```
+## Run locally
 
-The backtest response places baseline and candidate metrics side by side and lists synthetic fraud IDs missed by both the baseline and candidate on the test split. Discovery reports the selected candidate, its validation metrics, one held-out candidate evaluation, baseline test metrics, split sizes, and the missed baseline IDs. It does not assert that the candidate is better.
+Requirements: Python 3.11+, Node 22+, and optionally a Gemini API key from Google AI Studio.
 
-## Windows PowerShell setup
-
-Requirements: Python 3.11 or newer, Node.js 20 or newer, npm, and Windows PowerShell.
-
-### Backend
-
-From the repository root:
-
-```powershell
+```bash
+# backend
 cd backend
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements-lock.txt
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-lock.txt
+cp .env.example .env            # set GOOGLE_API_KEY to enable live investigations
+.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
-If PowerShell blocks venv activation, run these from `backend` instead:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-The API is at `http://127.0.0.1:8000`; interactive docs are at `/docs`.
-
-### Frontend dashboard
-
-In a second PowerShell window, from the repository root:
-
-```powershell
+# frontend (second terminal)
 cd frontend
 npm ci
-npm run dev
+npm run dev                     # http://localhost:5173
 ```
 
-Open Vite's printed local URL, normally `http://localhost:5173`. The dashboard reads the backend base URL from `VITE_API_BASE_URL`; by default it uses `http://localhost:8000`. To change it, copy the root `.env.example` to `frontend/.env.local`, set `VITE_API_BASE_URL`, and restart Vite. The backend currently has no persistent approve/reject endpoint, so the candidate remains a draft pending review; the dashboard does not simulate a decision or activate rules.
+Without a key, the dashboard still shows the recorded live runs, and live investigations are disabled. Interactive API docs are at `http://127.0.0.1:8000/docs`.
 
-### Run backend tests
+To run with Docker, as on Cloud Run:
 
-From the repository root:
-
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m pytest -q
+```bash
+docker build -t rulepilot-ai .
+docker run -p 8080:8080 -e GOOGLE_API_KEY=... rulepilot-ai   # http://localhost:8080
 ```
 
-If you activated the backend virtual environment, use `python -m pytest -q` from `backend`.
+## Checks
 
-### Run frontend checks
-
-From the repository root:
-
-```powershell
-cd frontend
-npm test
-npm exec -- tsc -b --pretty false
-npm run build
+```bash
+cd backend && .venv/bin/python -m pytest -q          # 112 tests, no Gemini calls
+cd frontend && npm test && npx tsc -b && npm run build   # 14 tests
+cd backend && .venv/bin/python scripts/golden_eval.py    # live golden set (needs a key)
+cd backend && .venv/bin/python scripts/smoke_check.py http://127.0.0.1:8000
 ```
+
+The golden set (`backend/app/golden.py`) re-runs each advisory against each dataset. It checks status, coverage, guardrails, verified quotes, held-out discipline, and whether the selected rule uses relevant fields. Held-out metric values are never used as pass/fail criteria.
+
+## Deploy to Cloud Run
+
+These commands assume a Google Cloud project with billing enabled.
+
+```bash
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com firestore.googleapis.com
+gcloud firestore databases create --location=asia-southeast1
+printf '%s' 'YOUR_GEMINI_KEY' | gcloud secrets create gemini-api-key --data-file=-
+gcloud run deploy rulepilot-ai --source . --region asia-southeast1 --allow-unauthenticated \
+  --memory 1Gi --timeout 300 --max-instances 2 \
+  --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=FALSE,RULEPILOT_STORE=firestore,GOOGLE_CLOUD_PROJECT=PROJECT_ID \
+  --set-secrets GOOGLE_API_KEY=gemini-api-key:latest
+```
+
+Setting up the Cloud Scheduler job and verifying the deployment are covered in [agentic/skills.md](agentic/skills.md), skill 9.
 
 ## Limitations
 
-- Only synthetic records are included. No customer data or full public fraud dataset is bundled.
-- The baseline threshold and label-generation process are illustrative and have no real-world calibration.
-- Discovery currently searches one-condition numeric thresholds; it is a small, inspectable proposal mechanism, not machine learning or an autonomous rule author.
-- Validation is used to select a candidate. The held-out test split is used only after selection, but the small synthetic sample makes metrics noisy.
-- There is no persistence, authentication, human-approval workflow, production transaction ingestion, drift monitoring, or real-data backtesting yet.
-- Candidate proposals are drafts. Human review and approval are not implemented in this milestone.
+- All transaction data is synthetic and includes injected patterns. Nothing here measures real-world detection, loss prevention, or return on investment.
+- Public advisories describe techniques; they are not labelled ground truth.
+- There is no authentication, and reviewer names are self-declared. A public deployment lets any visitor record reviews.
+- Rules are numeric threshold conditions only. There is no real bank integration; the transaction feed is a mock.
+- On the free tier, Gemini returns 429/503 errors, which the model fallback chain absorbs. Enable billing for reliable demos.
 
-## Environment files
+## Roadmap
 
-The root `.env.example` contains only the frontend API URL placeholder. `backend/.env.example` contains a local development label. No credentials or external service keys are needed.
+- Re-backtest approved rules on new data windows to detect drift.
+- Real transaction data in a secure environment, authentication, and reviewer identity.
+- A rule-activation workflow with a second approver.
+- Account takeover, scam, and AML typologies.
+
+## Repository guide
+
+| Path | Contents |
+| --- | --- |
+| `backend/` | FastAPI app, agent, rule engine, tests, scripts |
+| `frontend/` | React + TypeScript + Vite dashboard |
+| `agentic/` | Project context, guardrails, architecture, procedures, and tasks (also used by AI coding assistants) |
+| `PROJECT_STATUS.md` | Submission checklist and remaining work |
+| `IMPLEMENTATION_SUMMARY.txt` | Full implementation log |

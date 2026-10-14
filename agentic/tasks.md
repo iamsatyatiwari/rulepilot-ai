@@ -15,7 +15,7 @@ Status values: `done`, `in progress`, `todo`, `deferred`.
 | T6 | Investigations UI | done |
 | T7 | Local live end-to-end run; recorded runs | done |
 | T8 | Cloud Run deployment | todo — needs GCP project, billing, gcloud |
-| T9 | README, architecture diagram, PDF deck, 3-minute video | todo |
+| T9 | README and architecture diagram (done 15 Oct); PDF deck, 3-minute video | in progress |
 
 ## M4 — Continuous learning (governed)
 
