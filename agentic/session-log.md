@@ -22,9 +22,10 @@ This file carries working state from one AI-assistant session (context window) t
   - ✅ Live Gemini (14 Oct 17:41): card testing → `pending_human_review`, recall +43.6 pp, all guardrails pass; SIM swap → `not_testable`.
 - **Gemini key facts:** key is in `backend/.env` only. It gets 429 on `gemini-3.8-flash`, `gemini-flash-latest`, `gemini-3.6-flash`, and often `gemini-3.5-flash`; only `gemini-3.5-flash-lite` reliably works → **billing is probably not enabled** on the key's project. Local `.env` uses `RULEPILOT_GEMINI_MODEL=gemini-3.5-flash`, fallback `gemini-3.5-flash-lite`. For Cloud Run, enable billing or set the same env vars.
 - **Fixed:** a stalled model request could hang ~7 min past the 120 s limit (ADK waits for the in-flight call on cancel). Each request now has an HTTP timeout (`request_timeout_ms`, ≤ 45 s) and timeouts count as transient → fallback.
-- **iCloud warning:** the repo is in `~/Documents` (iCloud-synced). After branch switches, iCloud created `"<name> 2.<ext>"` conflict copies (44 files, all identical to committed versions). They were moved to the session scratchpad, not deleted. If `pytest` suddenly reports ~144 tests, look for `* 2.py` files. Consider moving the repo out of `~/Documents`.
-- **Git:** `main` fast-forwarded to `74dfbab` locally; work committed on `feat/shadow-scoring-ingestion`. **Nothing pushed**: this Mac has no GitHub credentials (HTTPS prompt fails; SSH key not on the account). User must authenticate, then: `git push origin main` and `git push -u origin feat/shadow-scoring-ingestion`.
-- **Next step:** user authenticates GitHub → push → deploy to Cloud Run (needs GCP project ID + billing).
+- **Repo location:** moved from `~/Documents/git_projects/rulepilot-ai` (iCloud-synced; caused `"<name> 2.<ext>"` duplicate files) to **`~/dev/rulepilot-ai`** on 14 Oct. `backend/.venv` was recreated there. If `pytest` ever reports ~144 tests, look for `* 2.py` copies.
+- **GitHub:** `gh` CLI logged in as `shuklapiyush113` (HTTPS, credential helper set up). Git identity: `Piyush Shukla <91715671+shuklapiyush113@users.noreply.github.com>` (global).
+- **Git state:** `main` fast-forwarded locally to `74dfbab`; work on `feat/shadow-scoring-ingestion`. **Nothing pushed:** `shuklapiyush113` has no push access to `iamsatyatiwari/rulepilot-ai`. Waiting for the owner to add it as a collaborator. Then: accept invite (`gh api user/repository_invitations`), `git push origin main`, `git push -u origin feat/shadow-scoring-ingestion`.
+- **Next step:** push → deploy to Cloud Run (needs GCP project ID + billing).
 
 ## Local environment (macOS)
 
@@ -56,6 +57,9 @@ git diff --check
 ```
 
 ## Log
+
+### 2026-10-14 — repo move and GitHub setup
+- Moved repo to `~/dev/rulepilot-ai`; installed `gh`, logged in as `shuklapiyush113`; set git identity; re-authored the two unpushed commits. Push waits on collaborator access.
 
 ### 2026-10-14 — merge, Docker, live Gemini
 - Fast-forward merged `feat/m3-intelligence-agent` into `main` (local), branched `feat/shadow-scoring-ingestion`, committed. Push blocked (no credentials).
