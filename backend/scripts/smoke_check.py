@@ -54,8 +54,12 @@ bad = dict(cand, conditions=[{"field": "__import__", "operator": "greater_than",
 s, b = call("POST", "/api/v1/backtests/run", {"candidate_rule": bad, "seed": 41}); check("Malformed rule rejected (422)", s == 422)
 
 s, b = call("GET", "/api/v1/advisories"); check("GET advisories", s == 200, str([i["advisory_id"] for i in b["items"]]))
-s, b = call("GET", "/api/v1/agent/status"); check("GET agent/status (no key)", s == 200 and b["configured"] is False, str(b))
-s, b = call("POST", "/api/v1/investigations", {"advisory_id": "jpm-card-testing"}); check("POST investigation without key -> 503", s == 503, str(b))
+s, status = call("GET", "/api/v1/agent/status"); check("GET agent/status", s == 200 and "configured" in status, str(status))
+if status.get("configured"):
+    # Never start a live (billed, slow) investigation from the smoke check.
+    print("SKIP no-key 503 check (Gemini is configured on this server)")
+else:
+    s, b = call("POST", "/api/v1/investigations", {"advisory_id": "jpm-card-testing"}); check("POST investigation without key -> 503", s == 503, str(b))
 s, b = call("POST", "/api/v1/investigations", {"advisory_id": "nope"}); check("Unknown advisory -> 404", s == 404)
 
 s, invs = call("GET", "/api/v1/investigations"); check("GET investigations (recorded)", s == 200 and len(invs) >= 3,

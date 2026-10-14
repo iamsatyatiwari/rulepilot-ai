@@ -73,8 +73,19 @@ def build_user_message(advisory: Advisory) -> str:
     )
 
 
-TRANSIENT_MARKERS = ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED", "overloaded", "high demand")
+TRANSIENT_MARKERS = (
+    "503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED", "overloaded", "high demand",
+    "Timeout", "ReadError",
+)
 RETRY_DELAYS_SECONDS = (3.0,)
+# Upper bound for one model HTTP request. Without it a stalled request can outlive
+# the agent time limit: ADK waits for the in-flight call when the run is cancelled.
+MAX_REQUEST_SECONDS = 45.0
+
+
+def request_timeout_ms(remaining_seconds: float) -> int:
+    """HTTP timeout for each model request, capped by the attempt's remaining budget."""
+    return max(1_000, int(min(remaining_seconds, MAX_REQUEST_SECONDS) * 1000))
 
 
 def _is_transient(message: str) -> bool:
@@ -143,7 +154,10 @@ async def _run_once(
         description="Investigates financial-crime intelligence against existing fraud rules.",
         instruction=INSTRUCTION,
         tools=toolkit.agent_tools(),
-        generate_content_config=types.GenerateContentConfig(temperature=0.1),
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.1,
+            http_options=types.HttpOptions(timeout=request_timeout_ms(timeout)),
+        ),
     )
     session_service = InMemorySessionService()
     user_id = "rulepilot-analyst"

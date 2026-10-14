@@ -17,16 +17,14 @@ This file carries working state from one AI-assistant session (context window) t
 - **Phase:** local testing and small features before Cloud Run deploy. Deadline 18 Oct 2026, team target 17 Oct — see `PROJECT_STATUS.md`.
 - **Decided with user (14 Oct):** no real banking integration. Instead (a) mock bank feed + shadow scoring to show the engine catching new-rule fraud, (b) scheduled ingestion endpoint for Cloud Scheduler (the "cron job" in the user's sketch). Both **done locally**.
 - **Local test status:**
-  - ✅ 96 backend / 13 frontend tests, tsc, build.
-  - ✅ production-mode run + `backend/scripts/smoke_check.py` (24/24; 29/29 with `--review`).
-  - ✅ Firestore emulator: smoke passes, no local files, state survives restart.
-  - ✅ headless Chrome: Investigations and Transaction monitor, desktop + mobile, no errors.
-  - ⏳ live Gemini runs — **needs a new `GOOGLE_API_KEY` from the user** in `backend/.env` (blanked locally).
-  - ⏳ Docker image build — Docker not installed; user not yet asked/answered whether to install or rely on Cloud Build.
-- **Fixed this session:** review banner now shows the human decision; scheduled runs labelled.
-- **Still open:** `config.py` treats the `.env.example` placeholder key as configured (low priority).
-- **Next step:** user provides Gemini key → live investigation + learning loop + ingestion with token locally → deploy (needs GCP project ID + billing; Cloud Scheduler steps are in `skills.md` skill 9).
-- **Git:** this session's work is committed on `feat/shadow-scoring-ingestion`. Neither `main` nor this branch is pushed yet: this Mac has no GitHub credentials (HTTPS prompt fails; SSH key `~/.ssh/id_ed25519` is not on the GitHub account).
+  - ✅ 98 backend / 13 frontend tests, tsc, build; production-mode + Firestore-emulator smoke checks; headless Chrome.
+  - ✅ Docker (Colima) installed; `docker build -t rulepilot-ai:local .` succeeds (Python 3.11 image).
+  - ✅ Live Gemini (14 Oct 17:41): card testing → `pending_human_review`, recall +43.6 pp, all guardrails pass; SIM swap → `not_testable`.
+- **Gemini key facts:** key is in `backend/.env` only. It gets 429 on `gemini-3.8-flash`, `gemini-flash-latest`, `gemini-3.6-flash`, and often `gemini-3.5-flash`; only `gemini-3.5-flash-lite` reliably works → **billing is probably not enabled** on the key's project. Local `.env` uses `RULEPILOT_GEMINI_MODEL=gemini-3.5-flash`, fallback `gemini-3.5-flash-lite`. For Cloud Run, enable billing or set the same env vars.
+- **Fixed:** a stalled model request could hang ~7 min past the 120 s limit (ADK waits for the in-flight call on cancel). Each request now has an HTTP timeout (`request_timeout_ms`, ≤ 45 s) and timeouts count as transient → fallback.
+- **iCloud warning:** the repo is in `~/Documents` (iCloud-synced). After branch switches, iCloud created `"<name> 2.<ext>"` conflict copies (44 files, all identical to committed versions). They were moved to the session scratchpad, not deleted. If `pytest` suddenly reports ~144 tests, look for `* 2.py` files. Consider moving the repo out of `~/Documents`.
+- **Git:** `main` fast-forwarded to `74dfbab` locally; work committed on `feat/shadow-scoring-ingestion`. **Nothing pushed**: this Mac has no GitHub credentials (HTTPS prompt fails; SSH key not on the account). User must authenticate, then: `git push origin main` and `git push -u origin feat/shadow-scoring-ingestion`.
+- **Next step:** user authenticates GitHub → push → deploy to Cloud Run (needs GCP project ID + billing).
 
 ## Local environment (macOS)
 
@@ -58,6 +56,10 @@ git diff --check
 ```
 
 ## Log
+
+### 2026-10-14 — merge, Docker, live Gemini
+- Fast-forward merged `feat/m3-intelligence-agent` into `main` (local), branched `feat/shadow-scoring-ingestion`, committed. Push blocked (no credentials).
+- Installed Colima + Docker; image builds. Live runs work after the per-request timeout fix; key lacks quota for newer models.
 
 ### 2026-10-14 — shadow scoring and scheduled ingestion
 - User's hand-drawn architecture compared with the code: AI → rule generation → engine matches; banking connection, cron job, and auto-activation do not (human gate is by design).

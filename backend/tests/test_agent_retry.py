@@ -53,3 +53,15 @@ def test_non_transient_error_stops_without_fallback(monkeypatch):
     stats = asyncio.run(agent_module.run_adk_agent(toolkit(), ADVISORY, settings()))
     assert calls == ["primary"]
     assert stats.errors == ["primary attempt 1: ValueError: invalid request"]
+
+
+def test_each_model_request_has_a_bounded_http_timeout():
+    assert agent_module.request_timeout_ms(300) == int(agent_module.MAX_REQUEST_SECONDS * 1000)
+    assert agent_module.request_timeout_ms(12.5) == 12_500
+    assert agent_module.request_timeout_ms(0.2) == 1_000
+
+
+def test_stalled_requests_are_treated_as_transient():
+    for message in ("ConnectTimeout: ", "ReadTimeout: ", "ReadError: ", "ServerError: 503 UNAVAILABLE"):
+        assert agent_module._is_transient(message)
+    assert not agent_module._is_transient("ClientError: 400 INVALID_ARGUMENT")
