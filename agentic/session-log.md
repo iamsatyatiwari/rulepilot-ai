@@ -24,8 +24,8 @@ This file carries working state from one AI-assistant session (context window) t
 - **Fixed:** a stalled model request could hang ~7 min past the 120 s limit (ADK waits for the in-flight call on cancel). Each request now has an HTTP timeout (`request_timeout_ms`, ≤ 45 s) and timeouts count as transient → fallback.
 - **Repo location:** moved from `~/Documents/git_projects/rulepilot-ai` (iCloud-synced; caused `"<name> 2.<ext>"` duplicate files) to **`~/dev/rulepilot-ai`** on 14 Oct. `backend/.venv` was recreated there. If `pytest` ever reports ~144 tests, look for `* 2.py` copies.
 - **GitHub:** `gh` CLI logged in as `shuklapiyush113` (HTTPS, credential helper set up). Git identity: `Piyush Shukla <91715671+shuklapiyush113@users.noreply.github.com>` (global).
-- **Git state:** `main` fast-forwarded locally to `74dfbab`; work on `feat/shadow-scoring-ingestion`. **Nothing pushed:** `shuklapiyush113` has no push access to `iamsatyatiwari/rulepilot-ai`. Waiting for the owner to add it as a collaborator. Then: accept invite (`gh api user/repository_invitations`), `git push origin main`, `git push -u origin feat/shadow-scoring-ingestion`.
-- **Next step:** push → deploy to Cloud Run (needs GCP project ID + billing).
+- **Git state:** `shuklapiyush113` is a collaborator (write). Pushed 14 Oct: `main` → `74dfbab` (fast-forward), `feat/shadow-scoring-ingestion` (tracks origin). No PR opened yet.
+- **Next step:** open PR `feat/shadow-scoring-ingestion` → `main` (if user wants) → deploy to Cloud Run (needs GCP project ID + billing).
 
 ## Local environment (macOS)
 
