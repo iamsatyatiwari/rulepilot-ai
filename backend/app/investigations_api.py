@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StrictStr, model_val
 from app.agent.orchestrator import InvestigationReport, run_investigation
 from app.config import Settings, get_settings
 from app.data import DEFAULT_SPLIT_SEED
-from app.datasets import SCENARIO_DATASET_ID
+from app.datasets import INVESTIGATION_DATASET_ID
 from app.governance import (
     AuditEvent,
     CatalogEntry,
@@ -69,7 +69,7 @@ class InvestigationRequest(BaseModel):
 
     advisory_id: StrictStr | None = None
     custom_advisory: CustomAdvisoryInput | None = None
-    dataset_id: Literal["synthetic-v1", "card-scenario-v2"] = SCENARIO_DATASET_ID
+    dataset_id: Literal["synthetic-v1", "card-scenario-v2", "payments-scenario-v3"] = INVESTIGATION_DATASET_ID
     seed: Annotated[int, Field(ge=0, le=2**32 - 1)] = DEFAULT_SPLIT_SEED
 
     @model_validator(mode="after")
@@ -239,7 +239,7 @@ async def run_ingestion(
         async with _run_slots:
             report = await run_investigation(
                 advisory,
-                SCENARIO_DATASET_ID,
+                INVESTIGATION_DATASET_ID,
                 DEFAULT_SPLIT_SEED,
                 settings,
                 approved_rules=store.approved_rules(),

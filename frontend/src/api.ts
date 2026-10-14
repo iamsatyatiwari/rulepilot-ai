@@ -230,6 +230,11 @@ export type Transaction = {
   transactions_1h?: number | null
   declined_attempts_24h?: number | null
   card_present?: number | null
+  hour_of_day?: number | null
+  new_device?: number | null
+  days_since_sim_change?: number | null
+  credential_resets_24h?: number | null
+  new_payee?: number | null
 }
 
 export type RuleVerdict = {

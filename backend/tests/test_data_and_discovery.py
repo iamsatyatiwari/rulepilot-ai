@@ -122,3 +122,40 @@ def test_selected_candidate_is_evaluated_once_on_held_out_records(
     report = discovery.run_discovery(synthetic_transactions, seed=41)
     assert report.candidate_rule is not None
     assert test_calls.count(report.candidate_rule.rule_id) == 1
+
+
+def test_payments_scenario_is_reproducible_and_populates_every_field():
+    from app.data import create_payments_scenario_dataset
+    from app.datasets import populated_fields
+    from app.rules.models import ruleable_fields
+
+    first = create_payments_scenario_dataset(size=2000, seed=9)
+    assert first == create_payments_scenario_dataset(size=2000, seed=9)
+    assert set(populated_fields(first)) == set(ruleable_fields())
+    assert {row.ground_truth_fraud for row in first} == {True, False}
+
+
+def test_payments_scenario_has_enough_held_out_fraud_and_injected_takeovers():
+    from app.datasets import PAYMENTS_DATASET_ID, get_dataset
+
+    info, records = get_dataset(PAYMENTS_DATASET_ID)
+    assert info.size == len(records) == 30000
+    fraud_share = sum(bool(row.ground_truth_fraud) for row in records) / len(records)
+    assert 0.025 < fraud_share < 0.045
+    _, _, test = stratified_train_validation_test_split(records)
+    assert sum(bool(row.ground_truth_fraud) for row in test) >= 150
+    takeovers = [
+        row for row in records
+        if row.ground_truth_fraud and row.days_since_sim_change <= 3 and row.new_payee == 1
+    ]
+    look_alikes = [row for row in records if not row.ground_truth_fraud and row.days_since_sim_change <= 3]
+    assert takeovers and look_alikes  # a recent SIM change alone is not proof of fraud
+    assert "injected" in info.limitations
+
+
+def test_older_datasets_are_unchanged_by_the_new_fields():
+    from app.data import create_card_scenario_dataset
+
+    rows = create_card_scenario_dataset()
+    assert len(rows) == 6000 and sum(bool(row.ground_truth_fraud) for row in rows) == 191
+    assert all(row.days_since_sim_change is None and row.new_device is None for row in rows)

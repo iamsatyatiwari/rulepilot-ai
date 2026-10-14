@@ -156,10 +156,37 @@ Stands in for the bank-side integration without building one.
     with all active decisions unchanged.
 
 
+PAYMENTS DATASET V3 AND GOLDEN-SET EVALUATION (2026-10-14)
+-----------------------------------------------------------
+  * New rule-eligible fields on Transaction (optional; older datasets leave
+    them None and rules fail closed): hour_of_day, new_device,
+    days_since_sim_change, credential_resets_24h, new_payee.
+  * payments-scenario-v3 (30,000 records, seed 2028, ~3.3% fraud): v2's
+    high-value misuse and card testing plus an injected SIM-swap account
+    takeover pattern, with legitimate look-alikes (customers who just
+    replaced their phone, first sizeable payments to a new payee). Held-out
+    test now holds 202 fraud records (39 on v2). card-scenario-v2 unchanged.
+  * Investigations and scheduled ingestion default to payments-scenario-v3
+    (INVESTIGATION_DATASET_ID). The FBI SIM-swap advisory is testable there
+    and still not_testable on card-scenario-v2.
+  * Mock bank feed draws v3 rows (~22% card testing, 8% high-value, 10%
+    account takeover). Monitor UI shows the new fields and a SIM-swap preset.
+  * app/golden.py + scripts/golden_eval.py (task L4): four golden cases
+    (advisory x dataset) checked for status, coverage, guardrails, verified
+    quotes, held-out discipline, and relevant rule fields. Held-out metric
+    values are never pass/fail criteria. Recorded runs pass their v2 cases
+    offline (tests/test_golden.py).
+  * Live golden run (gemini-3.5-flash-lite fallback; other models 429):
+    card-testing-payments-v3 and sim-swap-payments-v3 both PASS.
+  * Known data-design limitation: ~79% of injected takeovers have amount
+    >= 1,500 (training split), so the baseline already catches most of them
+    and a SIM-swap rule adds little held-out recall.
+
+
 VERIFICATION RESULTS (2026-10-14)
 ---------------------------------
-  * Backend: 96 pytest tests passed (82 at M4, 36 at M2B).
-  * Frontend: 13 Vitest tests passed (10 at M4, 5 at M2B); tsc and Vite
+  * Backend: 110 pytest tests passed (96 before v3, 82 at M4, 36 at M2B).
+  * Frontend: 14 Vitest tests passed (10 at M4, 5 at M2B); tsc and Vite
     build passed.
   * Production-mode run (FastAPI serving the built dashboard) and the
     Firestore emulator: backend/scripts/smoke_check.py passes; state survives
@@ -171,8 +198,8 @@ VERIFICATION RESULTS (2026-10-14)
 
 CURRENT LIMITATIONS
 -------------------
-  * All transaction data is synthetic; card-scenario-v2 contains an injected
-    pattern. Metrics are not real-world detection rates.
+  * All transaction data is synthetic; card-scenario-v2 and
+    payments-scenario-v3 contain injected patterns. Metrics are not real-world detection rates.
   * Public intelligence describes techniques; it is not ground truth.
   * Use RULEPILOT_STORE=firestore on Cloud Run; local JSON is ephemeral there.
   * No authentication; reviewer identity is self-declared.

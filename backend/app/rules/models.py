@@ -67,6 +67,42 @@ class Transaction(BaseModel):
         description="1 if the card was physically present, 0 for card-not-present (e-commerce).",
         json_schema_extra={"rule_eligible": True},
     )
+    hour_of_day: StrictInt | None = Field(
+        default=None,
+        ge=0,
+        le=23,
+        description="Local hour of the transaction, 0-23.",
+        json_schema_extra={"rule_eligible": True},
+    )
+    new_device: StrictInt | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="1 if the transaction came from a device never seen before on this account.",
+        json_schema_extra={"rule_eligible": True},
+    )
+    days_since_sim_change: StrictInt | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Days since the mobile operator last reported a SIM change (SIM swap or port) "
+            "for the account's registered phone number."
+        ),
+        json_schema_extra={"rule_eligible": True},
+    )
+    credential_resets_24h: StrictInt | None = Field(
+        default=None,
+        ge=0,
+        description="Password, PIN, or SMS/2FA credential resets on the account in the preceding 24 hours.",
+        json_schema_extra={"rule_eligible": True},
+    )
+    new_payee: StrictInt | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="1 if the payment goes to a payee or merchant this account has never paid before.",
+        json_schema_extra={"rule_eligible": True},
+    )
     ground_truth_fraud: StrictBool | None = None
 
     @field_validator("amount", "distance_from_home_km")

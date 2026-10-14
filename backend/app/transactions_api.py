@@ -96,7 +96,7 @@ def simulate(request: SimulateRequest, store: GovernanceStore = Depends(get_stor
         seed=request.seed,
         disclaimer=(
             "Mock bank feed: fresh synthetic transactions with fraud deliberately over-represented "
-            "(about 35%) for demonstration. Labels are synthetic and are not shown to the rules."
+            "(about 40%) for demonstration. Labels are synthetic and are not shown to the rules."
         ),
         summary=summary,
         items=items,

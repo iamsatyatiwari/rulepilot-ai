@@ -109,6 +109,46 @@ def test_untestable_advisory_is_not_backtested_and_overreach_is_flagged():
     } <= failed
 
 
+SIM_QUOTE = (
+    "The Federal Bureau of Investigation is issuing this announcement to inform mobile carriers "
+    "and the public of the increasing use of Subscriber Identity Module (SIM) swapping by criminals"
+)
+SIM_FIELDS = ["days_since_sim_change", "new_device", "credential_resets_24h", "new_payee"]
+
+
+async def sim_swap_agent(toolkit, advisory, settings):
+    toolkit.get_rule_catalog()
+    toolkit.check_field_coverage(SIM_FIELDS)
+    toolkit.get_training_profile()
+    result = toolkit.evaluate_candidate_rule(
+        name="Recent SIM change with new device and payee",
+        rationale="Advisory describes a SIM swap followed by account takeover.",
+        conditions=[
+            {"field": "days_since_sim_change", "operator": "less_than_or_equal", "value": 3},
+            {"field": "new_device", "operator": "equals", "value": 1},
+            {"field": "new_payee", "operator": "equals", "value": 1},
+        ],
+        logical_operator="and",
+    )
+    toolkit.submit_findings(findings(SIM_FIELDS, quotes=(SIM_QUOTE,)), conclusion("gap_identified", result["rule_id"]))
+    return AgentRunStats(llm_calls=5, model_version="fake-model")
+
+
+def test_sim_swap_advisory_is_testable_on_the_payments_dataset():
+    advisory = load_curated_advisories()[SIM_ID]
+    report = asyncio.run(run_investigation(advisory, "payments-scenario-v3", 41, get_settings(), sim_swap_agent))
+    assert report.coverage["status"] == "testable"
+    assert report.status == "pending_human_review"
+    assert report.holdout.evaluated_split == "test"
+    assert report.holdout_delta.recall_change > 0
+    assert all(check.passed for check in report.guardrails)
+
+
+def test_investigations_default_to_the_payments_dataset():
+    request = investigations_api.InvestigationRequest(advisory_id=CARD_ID)
+    assert request.dataset_id == "payments-scenario-v3"
+
+
 def test_agent_without_submission_is_incomplete():
     report = run(silent_agent)
     assert report.status == "agent_incomplete"

@@ -48,8 +48,9 @@ sequenceDiagram
 | `rules/models.py` | `Transaction` (ruleable fields marked by metadata), `Condition`, `Rule`, operators, statuses |
 | `rules/engine.py` | `evaluate_rule` — explicit operators, fail-closed on missing data |
 | `evaluation.py` | `calculate_metrics` confusion matrix |
-| `data.py` | `create_synthetic_dataset` (v1), `create_card_scenario_dataset` (v2), stratified split |
-| `datasets.py` | Registry: `synthetic-v1`, `card-scenario-v2`; `populated_fields` |
+| `data.py` | `create_synthetic_dataset` (v1), `create_card_scenario_dataset` (v2), `create_payments_scenario_dataset` (v3), `create_demo_feed`, stratified split |
+| `datasets.py` | Registry: `synthetic-v1`, `card-scenario-v2`, `payments-scenario-v3` (default for investigations and ingestion via `INVESTIGATION_DATASET_ID`); `populated_fields` |
+| `golden.py` | Golden-set cases and `check_report` (task L4); run live with `scripts/golden_eval.py` |
 | `baseline.py` | `RP-BASELINE-001` |
 | `discovery.py` | Threshold discovery (M2A) |
 | `backtest.py` | `compare_records` / `compare_on_split` → baseline, candidate, combined metrics |
@@ -123,7 +124,7 @@ The model is never retrained. The *system* learns through reviewed state:
 
 ## Shadow scoring (mock bank integration)
 
-There is no real bank connection. `/transactions/simulate` stands in for one: it draws fresh transactions from the same per-pattern distributions as `card-scenario-v2` but from an independent random stream (`create_demo_feed`), never from any dataset split. Fraud is over-represented (~35%) so a short batch shows each pattern.
+There is no real bank connection. `/transactions/simulate` stands in for one: it draws fresh transactions from the same per-pattern distributions as `payments-scenario-v3` but from an independent random stream (`create_demo_feed`), never from any dataset split. Fraud is over-represented (~40%: card testing, high-value misuse, SIM-swap takeover) so a short batch shows each pattern.
 
 Each transaction is scored with the label removed. **Active rules** (the baseline) make the `flag`/`allow` decision. **Approved rules** from the reviewed catalog are evaluated in *shadow mode*: their verdicts are reported (`shadow_flagged_by`, `caught_only_in_shadow`) but can never change the decision, so guardrail 13 holds. The summary compares against the synthetic labels afterwards.
 
