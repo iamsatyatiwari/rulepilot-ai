@@ -1,0 +1,11 @@
+{
+  "advisory_id": "fbi-ic3-sim-swap-2022",
+  "title": "Criminals Increasing SIM Swap Schemes to Steal Millions of Dollars from US Public",
+  "publisher": "FBI Internet Crime Complaint Center (IC3), Alert I-020822-PSA",
+  "source_url": "https://www.ic3.gov/PSA/2022/PSA220208",
+  "published_date": "2022-02-08",
+  "retrieved_at": "2026-10-14",
+  "source_type": "government_psa",
+  "rights_note": "U.S. Government public service announcement.",
+  "excerpt": "The Federal Bureau of Investigation is issuing this announcement to inform mobile carriers and the public of the increasing use of Subscriber Identity Module (SIM) swapping by criminals to steal money from fiat and virtual currency accounts. From January 2018 to December 2020, the FBI Internet Crime Complaint Center (IC3) received 320 complaints related to SIM swapping incidents with adjusted losses of approximately $12 million. In 2021, IC3 received 1,611 SIM swapping complaints with adjusted losses of more than $68 million.\nSIM swapping is a malicious technique where criminal actors target mobile carriers to gain access to victims' bank accounts, virtual currency accounts, and other sensitive information. Criminal actors primarily conduct SIM swap schemes using social engineering, insider threat, or phishing techniques.\nOnce the SIM is swapped, the victim's calls, texts, and other data are diverted to the criminal's device. This access allows criminals to send 'Forgot Password' or 'Account Recovery' requests to the victim's email and other online accounts associated with the victim's mobile telephone number. Using SMS-based two-factor authentication, mobile application providers send a link or one-time passcode via text to the victim's number, now owned by the criminal, to access accounts. The criminal uses the codes to login and reset passwords, gaining control of online accounts associated with the victim's phone profile."
+}

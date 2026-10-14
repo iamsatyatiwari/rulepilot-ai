@@ -1,0 +1,155 @@
+RULEPILOT AI — IMPLEMENTATION SUMMARY
+====================================
+
+Project
+-------
+RulePilot AI is a prototype for continuous financial rule intelligence, built
+for the Google Cloud AI Builder Cup 2026 (BFSI theme). A bounded Gemini agent
+(Google ADK) investigates a financial-crime advisory, checks it against the
+existing rule set and the available transaction data, and proposes candidate
+rules. A deterministic Python engine validates and measures every candidate; a
+held-out test is run once by the orchestrator; a human records the decision.
+All transaction data is synthetic. Nothing is ever activated automatically.
+
+Core workflow:
+  intelligence -> structured findings -> coverage-gap check -> candidate rules
+  -> validation metrics -> single held-out test -> human review -> audit log
+
+
+MILESTONE 1 — APPLICATION FOUNDATION
+------------------------------------
+  * FastAPI backend with /health; React + TypeScript + Vite frontend.
+  * Dependency manifests, lockfiles, .gitignore, environment examples, and
+    Windows PowerShell setup instructions.
+
+
+MILESTONE 2A — DETERMINISTIC FRAUD RULE ENGINE
+----------------------------------------------
+  * Strict Pydantic transaction and rule schemas; allowlisted fields and six
+    comparison operators; no eval/exec; missing data never flags (fail closed).
+  * Confusion-matrix metrics (TP/FP/FN/TN, precision, recall, FPR, alerts).
+  * Seeded synthetic fixture (120 rows) and stratified 60/20/20 split.
+  * Documented baseline rule RP-BASELINE-001 (amount >= 1,500).
+  * Bounded threshold discovery: thresholds from train, selection on
+    validation, one evaluation on test.
+
+
+MILESTONE 2B — CONNECTED DASHBOARD
+----------------------------------
+  * Typed API client; dashboard for discovery, backtests, metric comparison,
+    missed-fraud IDs, loading/error/empty states; Vitest + RTL tests.
+
+
+MILESTONE 3 — GEMINI INTELLIGENCE AGENT (current)
+------------------------------------------------
+
+T0 Dependencies
+  * Upgraded FastAPI 0.115 -> 0.141.1 and Starlette 0.46 -> 1.8 so Google ADK
+    can be installed. Added google-adk 2.10.0, google-genai 2.30.1,
+    python-dotenv. Lockfile regenerated.
+
+T1 Datasets
+  * Dataset registry (app/datasets.py) with versions and seeds.
+  * synthetic-v1 (unchanged) and card-scenario-v2: 6,000 synthetic records,
+    ~3% fraud, new fields transactions_1h, declined_attempts_24h, card_present,
+    and a deliberately injected, documented card-testing pattern plus
+    legitimate look-alikes so no rule is perfect.
+
+T2 Deterministic agent tools (app/agent/tools.py)
+  * get_rule_catalog, get_training_profile (train split only),
+    check_field_coverage, evaluate_candidate_rule (validation split only,
+    max 3 candidates, max 3 conditions, forced draft status),
+    submit_findings (final structured output).
+  * Shared backtest service (app/backtest.py) reports baseline, candidate and
+    combined rule-set (baseline OR candidate) metrics.
+  * run_final_holdout: called by the orchestrator only, once per investigation.
+
+T3 Intelligence sources (app/intel/)
+  * Curated advisories with URL, publisher, dates, rights note, SHA-256:
+      - jpm-card-testing (J.P. Morgan merchant guidance; short attributed
+        excerpts) — testable case.
+      - fbi-ic3-sim-swap-2022 (FBI IC3 PSA, public domain) — not testable
+        with card transaction data.
+  * Evidence quotes are verified verbatim against the source text in code.
+
+T4 Agent and orchestrator (app/agent/agent.py, orchestrator.py)
+  * One ADK LlmAgent, temperature 0.1, max 12 model calls, 120 s timeout.
+  * Advisory text is delimited as untrusted data; spoofed delimiters removed.
+  * Retry and model fallback on 429/503 (gemini-3.8-flash ->
+    gemini-flash-latest -> gemini-3.6-flash -> gemini-3.5-flash-lite); a
+    failed attempt's tool state is discarded before retrying.
+  * Final status and guardrail checks are computed in Python: quote
+    verification, coverage consistency, budgets, single held-out use, draft
+    status. Statuses: pending_human_review, not_testable,
+    insufficient_evidence, agent_incomplete.
+
+T5 API and governance (app/investigations_api.py, app/governance.py)
+  * GET /api/v1/advisories, GET /api/v1/agent/status,
+    POST /api/v1/investigations (curated id or pasted advisory, max 8,000
+    chars, 2 concurrent runs), GET /api/v1/investigations[/{id}],
+    POST /api/v1/investigations/{id}/review, GET /api/v1/audit,
+    GET /api/v1/datasets, GET /api/v1/info.
+  * Review decisions (approve / reject / request_changes) record reviewer,
+    comment, rule version and time; activation is always "not_activated".
+  * Append-only audit log; JSON file store under backend/.rulepilot_data.
+  * Recorded live runs (app/intel/recorded) load as "recorded" investigations
+    so the demo works when Gemini capacity is unavailable.
+
+T6 Frontend
+  * App shell with two views: Investigations (new, default) and Rule engine
+    (M2B view). See agentic/ui-guide.md for every component.
+  * Same-origin API in production builds; 180 s timeout for investigations.
+
+T7 Local end-to-end verification (live Gemini, 2026-10-14)
+  * Card testing: gap identified; 3 candidates validated; held-out rule-set
+    recall +51.3 pp, false-positive rate +0.52 pp; 5/5 quotes verified.
+  * SIM swap: not testable (needs sim_swap_event, device_id, sms_2fa_reset);
+    no rule proposed; held-out test not used.
+  * HTTP flow: investigation -> approve -> audit events verified.
+
+T8 Deployment preparation
+  * Multi-stage Dockerfile: Vite build + Python 3.11 runtime; FastAPI serves
+    the dashboard and API on one Cloud Run URL. .dockerignore excludes
+    secrets and local data.
+
+
+VERIFICATION RESULTS (2026-10-14)
+---------------------------------
+  * Backend: 72 pytest tests passed (36 at M2B).
+  * Frontend: 9 Vitest tests passed (5 at M2B); tsc and Vite build passed.
+  * git diff --check passed; secret scan of source, fixtures and recordings
+    found no credentials.
+  * One dependency deprecation warning (Starlette TestClient/httpx).
+
+
+CURRENT LIMITATIONS
+-------------------
+  * All transaction data is synthetic; card-scenario-v2 contains an injected
+    pattern. Metrics are not real-world detection rates.
+  * Public intelligence describes techniques; it is not ground truth.
+  * Local JSON storage is ephemeral on Cloud Run (Firestore planned).
+  * No authentication; reviewer identity is self-declared.
+  * The agent does not yet learn from review decisions (planned next).
+  * Gemini free-tier quotas cause 429s; billing should be enabled for demos.
+
+
+LOCAL STARTUP — WINDOWS POWERSHELL
+----------------------------------
+Backend (repository root):
+  cd backend
+  py -3.11 -m venv .venv
+  .\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
+  copy .env.example .env      # then set GOOGLE_API_KEY in backend\.env
+  .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+Frontend (second window):
+  cd frontend
+  npm ci
+  npm run dev
+
+Open http://localhost:5173. Without a key the dashboard still shows recorded
+investigations; live runs are disabled.
+
+Tests:
+  cd backend;  .\.venv\Scripts\python.exe -m pytest -q
+  cd frontend; npm test; npm run build

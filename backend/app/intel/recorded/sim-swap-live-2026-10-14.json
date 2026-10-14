@@ -1,0 +1,255 @@
+{
+  "investigation_id": "011dbe29a7de4905938ea3137419e515",
+  "created_at": "2026-10-14T09:19:20.384251Z",
+  "origin": "live",
+  "status": "not_testable",
+  "headline": "The advisory's behaviors require data fields this dataset does not contain; no rule was tested.",
+  "advisory": {
+    "advisory_id": "fbi-ic3-sim-swap-2022",
+    "title": "Criminals Increasing SIM Swap Schemes to Steal Millions of Dollars from US Public",
+    "publisher": "FBI Internet Crime Complaint Center (IC3), Alert I-020822-PSA",
+    "source_url": "https://www.ic3.gov/PSA/2022/PSA220208",
+    "published_date": "2022-02-08",
+    "retrieved_at": "2026-10-14",
+    "source_type": "government_psa",
+    "rights_note": "U.S. Government public service announcement.",
+    "content_sha256": "46b198660526a72c845cdf41392e16ab8602b5fcfcdae0db1b826c2a4c75f903",
+    "excerpt": "The Federal Bureau of Investigation is issuing this announcement to inform mobile carriers and the public of the increasing use of Subscriber Identity Module (SIM) swapping by criminals to steal money from fiat and virtual currency accounts. From January 2018 to December 2020, the FBI Internet Crime Complaint Center (IC3) received 320 complaints related to SIM swapping incidents with adjusted losses of approximately $12 million. In 2021, IC3 received 1,611 SIM swapping complaints with adjusted losses of more than $68 million.\nSIM swapping is a malicious technique where criminal actors target mobile carriers to gain access to victims' bank accounts, virtual currency accounts, and other sensitive information. Criminal actors primarily conduct SIM swap schemes using social engineering, insider threat, or phishing techniques.\nOnce the SIM is swapped, the victim's calls, texts, and other data are diverted to the criminal's device. This access allows criminals to send 'Forgot Password' or 'Account Recovery' requests to the victim's email and other online accounts associated with the victim's mobile telephone number. Using SMS-based two-factor authentication, mobile application providers send a link or one-time passcode via text to the victim's number, now owned by the criminal, to access accounts. The criminal uses the codes to login and reset passwords, gaining control of online accounts associated with the victim's phone profile."
+  },
+  "dataset": {
+    "dataset_id": "card-scenario-v2",
+    "version": "2.0.0",
+    "generator_seed": 2027,
+    "size": 6000,
+    "synthetic": true,
+    "description": "Synthetic card-payments scenario (~3% fraud) with velocity, decline, and card-present features, including a deliberately injected card-testing pattern.",
+    "limitations": "Fully synthetic. The card-testing pattern was injected to demonstrate how the workflow surfaces a coverage gap; results do not measure real-world detection."
+  },
+  "seed": 41,
+  "split_sizes": {
+    "train": 3599,
+    "validation": 1199,
+    "test": 1202
+  },
+  "model_run": {
+    "provider": "google-gemini",
+    "framework": "google-adk",
+    "model": "gemini-3.5-flash-lite",
+    "model_version": "gemini-3.5-flash-lite",
+    "max_llm_calls": 12,
+    "timeout_seconds": 120,
+    "llm_calls": 4,
+    "input_tokens": 11335,
+    "output_tokens": 675,
+    "errors": [
+      "gemini-3.8-flash attempt 1: ServerError: 503 UNAVAILABLE",
+      "gemini-3.8-flash attempt 2: ServerError: 503 UNAVAILABLE",
+      "gemini-flash-latest attempt 1: ServerError: 503 UNAVAILABLE",
+      "gemini-flash-latest attempt 2: ServerError: 503 UNAVAILABLE",
+      "gemini-3.6-flash attempt 1: ServerError: 503 UNAVAILABLE",
+      "gemini-3.6-flash attempt 2: ServerError: 503 UNAVAILABLE"
+    ]
+  },
+  "findings": {
+    "technique_name": "SIM Swapping Scheme",
+    "summary": "The FBI IC3 advisory details how criminal actors use SIM swapping techniques—often via social engineering, insider threats, or phishing—to hijack victims' mobile telephone numbers. Once a SIM swap is completed, criminals intercept SMS-based two-factor authentication codes to reset passwords and gain unauthorized access to online accounts and financial funds.",
+    "behaviors": [
+      "Criminals target mobile carriers to gain access to victims' bank accounts, virtual currency accounts, and sensitive information.",
+      "Victim's calls, texts, and other data are diverted to the criminal's device after a SIM swap.",
+      "Criminals send 'Forgot Password' or 'Account Recovery' requests to access online accounts via SMS-based two-factor authentication."
+    ],
+    "indicators": [
+      "Social engineering or phishing used against mobile carriers or victims.",
+      "Diverted calls, texts, and data to a new criminal device.",
+      "SMS-based 'Forgot Password' or 'Account Recovery' requests leading to unauthorized logins."
+    ],
+    "required_fields": [
+      "sim_swap_event",
+      "device_id",
+      "sms_2fa_reset"
+    ],
+    "testable_hypotheses": [
+      "Transactions following a SIM swap event exhibit higher fraud rates.",
+      "Transactions originating from a newly changed device ID shortly after a SIM swap are associated with account takeover fraud."
+    ],
+    "uncertainties": [
+      "The synthetic transaction dataset does not capture carrier-level SIM swap events or device change telemetry.",
+      "Intelligence reports aggregate victim complaints across various institutions without transaction-level indicators."
+    ],
+    "evidence_quotes": [
+      "SIM swapping is a malicious technique where criminal actors target mobile carriers to gain access to victims' bank accounts, virtual currency accounts, and other sensitive information.",
+      "Once the SIM is swapped, the victim's calls, texts, and other data are diverted to the criminal's device.",
+      "Using SMS-based two-factor authentication, mobile application providers send a link or one-time passcode via text to the victim's number, now owned by the criminal, to access accounts."
+    ]
+  },
+  "evidence_quotes": [
+    {
+      "quote": "SIM swapping is a malicious technique where criminal actors target mobile carriers to gain access to victims' bank accounts, virtual currency accounts, and other sensitive information.",
+      "verified": true
+    },
+    {
+      "quote": "Once the SIM is swapped, the victim's calls, texts, and other data are diverted to the criminal's device.",
+      "verified": true
+    },
+    {
+      "quote": "Using SMS-based two-factor authentication, mobile application providers send a link or one-time passcode via text to the victim's number, now owned by the criminal, to access accounts.",
+      "verified": true
+    }
+  ],
+  "coverage": {
+    "status": "not_testable",
+    "available_fields": [],
+    "missing_fields": [
+      "sim_swap_event",
+      "device_id",
+      "sms_2fa_reset"
+    ],
+    "existing_rule_fields": [
+      "amount"
+    ],
+    "existing_rules_use_required_fields": []
+  },
+  "agent_conclusion": {
+    "coverage_assessment": "not_testable_with_available_data",
+    "selected_candidate_rule_id": null,
+    "recommendation": "insufficient_evidence",
+    "rationale": "The advisory describes SIM swap schemes where criminals hijack a victim's mobile number via social engineering or phishing to intercept SMS 2FA codes and take over accounts. The available payment card dataset contains only transactional features (e.g., amount, distance, transaction counts) and has no indicators for SIM swaps, device changes, or authentication resets. Therefore, the behavior is not testable with the available data.",
+    "limitations": [
+      "The dataset lacks features for SIM swapping, device changes, or SMS 2FA resets.",
+      "Public intelligence describes social engineering and account takeover vectors not present in transactional telemetry."
+    ]
+  },
+  "candidates": [],
+  "selected_rule": null,
+  "baseline_rule": {
+    "rule_id": "RP-BASELINE-001",
+    "name": "High transaction amount baseline",
+    "description": "Flags a transaction when its amount is at least 1,500 synthetic currency units.",
+    "rationale": "A simple, documented starting point for comparing candidate rules. The threshold is illustrative and is not calibrated for real financial data.",
+    "conditions": [
+      {
+        "field": "amount",
+        "operator": "greater_than_or_equal",
+        "value": 1500
+      }
+    ],
+    "logical_operator": "and",
+    "status": "approved",
+    "version": 1,
+    "created_at": "2026-10-14T09:18:33.934317Z",
+    "created_by": "rulepilot-baseline"
+  },
+  "holdout": null,
+  "holdout_delta": null,
+  "guardrails": [
+    {
+      "check": "Untrusted input isolated",
+      "passed": true,
+      "detail": "Advisory text was delimited as data; the agent had no network, file, shell, or code tools."
+    },
+    {
+      "check": "LLM call budget",
+      "passed": true,
+      "detail": "4 of 12 model calls used."
+    },
+    {
+      "check": "Candidate budget",
+      "passed": true,
+      "detail": "0 of 3 candidates evaluated on validation."
+    },
+    {
+      "check": "Evidence quotes verified",
+      "passed": true,
+      "detail": "3 of 3 quotes found verbatim in the source text."
+    },
+    {
+      "check": "Agent coverage claim matches data",
+      "passed": true,
+      "detail": "Deterministic coverage is 'not_testable'; agent assessed 'not_testable_with_available_data'."
+    },
+    {
+      "check": "Held-out test used at most once",
+      "passed": true,
+      "detail": "The test split was not used."
+    }
+  ],
+  "trace": [
+    {
+      "step": 1,
+      "tool": "get_rule_catalog",
+      "arguments": {},
+      "ok": true,
+      "summary": "1 existing rule(s); 7 available fields"
+    },
+    {
+      "step": 2,
+      "tool": "check_field_coverage",
+      "arguments": {
+        "required_fields": [
+          "sim_swap_event",
+          "device_id",
+          "sms_2fa_reset"
+        ]
+      },
+      "ok": true,
+      "summary": "Coverage not_testable; missing: sim_swap_event, device_id, sms_2fa_reset"
+    },
+    {
+      "step": 3,
+      "tool": "submit_findings",
+      "arguments": {
+        "findings": {
+          "technique_name": "SIM Swapping Scheme",
+          "summary": "The FBI IC3 advisory details how criminal actors use SIM swapping techniques—often via social engineering, insider threats, or phishing—to hijack victims' mobile telephone numbers. Once a SIM swap is completed, criminals intercept SMS-based two-factor authentication codes to reset passwords and gain unauthorized access to online accounts and financial funds.",
+          "behaviors": [
+            "Criminals target mobile carriers to gain access to victims' bank accounts, virtual currency accounts, and sensitive information.",
+            "Victim's calls, texts, and other data are diverted to the criminal's device after a SIM swap.",
+            "Criminals send 'Forgot Password' or 'Account Recovery' requests to access online accounts via SMS-based two-factor authentication."
+          ],
+          "indicators": [
+            "Social engineering or phishing used against mobile carriers or victims.",
+            "Diverted calls, texts, and data to a new criminal device.",
+            "SMS-based 'Forgot Password' or 'Account Recovery' requests leading to unauthorized logins."
+          ],
+          "required_fields": [
+            "sim_swap_event",
+            "device_id",
+            "sms_2fa_reset"
+          ],
+          "testable_hypotheses": [
+            "Transactions following a SIM swap event exhibit higher fraud rates.",
+            "Transactions originating from a newly changed device ID shortly after a SIM swap are associated with account takeover fraud."
+          ],
+          "uncertainties": [
+            "The synthetic transaction dataset does not capture carrier-level SIM swap events or device change telemetry.",
+            "Intelligence reports aggregate victim complaints across various institutions without transaction-level indicators."
+          ],
+          "evidence_quotes": [
+            "SIM swapping is a malicious technique where criminal actors target mobile carriers to gain access to victims' bank accounts, virtual currency accounts, and other sensitive information.",
+            "Once the SIM is swapped, the victim's calls, texts, and other data are diverted to the criminal's device.",
+            "Using SMS-based two-factor authentication, mobile application providers send a link or one-time passcode via text to the victim's number, now owned by the criminal, to access accounts."
+          ]
+        },
+        "conclusion": {
+          "coverage_assessment": "not_testable_with_available_data",
+          "selected_candidate_rule_id": null,
+          "recommendation": "insufficient_evidence",
+          "rationale": "The advisory describes SIM swap schemes where criminals hijack a victim's mobile number via social engineering or phishing to intercept SMS 2FA codes and take over accounts. The available payment card dataset contains only transactional features (e.g., amount, distance, transaction counts) and has no indicators for SIM swaps, device changes, or authentication resets. Therefore, the behavior is not testable with the available data.",
+          "limitations": [
+            "The dataset lacks features for SIM swapping, device changes, or SMS 2FA resets.",
+            "Public intelligence describes social engineering and account takeover vectors not present in transactional telemetry."
+          ]
+        }
+      },
+      "ok": true,
+      "summary": "Structured findings and conclusion recorded"
+    }
+  ],
+  "limitations": [
+    "Fully synthetic. The card-testing pattern was injected to demonstrate how the workflow surfaces a coverage gap; results do not measure real-world detection.",
+    "Public intelligence describes techniques; it is not transaction ground truth.",
+    "Metrics come from a 1202-record synthetic held-out split and are not real-world detection rates.",
+    "The dataset lacks features for SIM swapping, device changes, or SMS 2FA resets.",
+    "Public intelligence describes social engineering and account takeover vectors not present in transactional telemetry."
+  ]
+}

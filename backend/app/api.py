@@ -1,25 +1,22 @@
 """Versioned HTTP endpoints for rules, evaluation, and discovery."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 
+from app.backtest import compare_on_split
 from app.baseline import BASELINE_RULE
-from app.data import (
-    DEFAULT_DATASET_SEED,
-    DEFAULT_SPLIT_SEED,
-    create_synthetic_dataset,
-    sample_by_id,
-    stratified_train_validation_test_split,
-)
+from app.data import DEFAULT_SPLIT_SEED, sample_by_id
+from app.datasets import DATASETS, DEFAULT_DATASET_ID, DatasetInfo, get_dataset
 from app.discovery import DiscoveryReport, run_discovery
 from app.evaluation import EvaluationMetrics, calculate_metrics
 from app.rules.engine import evaluate_rule
 from app.rules.models import Rule, Transaction
 
 router = APIRouter(prefix="/api/v1")
-SYNTHETIC_TRANSACTIONS = create_synthetic_dataset(seed=DEFAULT_DATASET_SEED)
+SYNTHETIC_TRANSACTIONS = get_dataset(DEFAULT_DATASET_ID)[1]
+DatasetId = Literal["synthetic-v1", "card-scenario-v2"]
 
 
 class RuleListResponse(BaseModel):
@@ -50,22 +47,38 @@ class BacktestRequest(BaseModel):
 
     candidate_rule: Rule
     seed: Annotated[int, Field(ge=0, le=2**32 - 1)] = DEFAULT_SPLIT_SEED
+    dataset_id: DatasetId = DEFAULT_DATASET_ID
 
 
 class BacktestResponse(BaseModel):
     evaluated_split: str
+    dataset_id: str
     baseline_rule: Rule
     candidate_rule: Rule
     baseline_metrics: EvaluationMetrics
     candidate_metrics: EvaluationMetrics
     fraud_missed_by_baseline: list[str]
     fraud_missed_by_candidate: list[str]
+    combined_metrics: EvaluationMetrics
+    fraud_missed_by_combined: list[str]
 
 
 class DiscoveryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     seed: Annotated[int, Field(ge=0, le=2**32 - 1)] = DEFAULT_SPLIT_SEED
+    dataset_id: DatasetId = DEFAULT_DATASET_ID
+
+
+class DatasetListResponse(BaseModel):
+    count: int
+    items: list[DatasetInfo]
+
+
+@router.get("/datasets", response_model=DatasetListResponse, tags=["datasets"])
+def list_datasets() -> DatasetListResponse:
+    """List versioned synthetic datasets available for evaluation."""
+    return DatasetListResponse(count=len(DATASETS), items=list(DATASETS.values()))
 
 
 @router.get("/rules", response_model=RuleListResponse, tags=["rules"])
@@ -103,28 +116,19 @@ def run_backtest(request: BacktestRequest) -> BacktestResponse:
     """Compare baseline and supplied rule on the deterministic held-out test split."""
     if request.candidate_rule.rule_id == BASELINE_RULE.rule_id:
         raise HTTPException(status_code=409, detail="candidate rule_id must be unique")
-    _, _, test = stratified_train_validation_test_split(SYNTHETIC_TRANSACTIONS, request.seed)
-    labels = [bool(record.ground_truth_fraud) for record in test]
-    baseline_predictions = [evaluate_rule(BASELINE_RULE, record) for record in test]
-    candidate_predictions = [evaluate_rule(request.candidate_rule, record) for record in test]
-    missed = [
-        record.transaction_id or ""
-        for record, predicted, label in zip(test, baseline_predictions, labels)
-        if label and not predicted
-    ]
-    candidate_missed = [
-        record.transaction_id or ""
-        for record, predicted, label in zip(test, candidate_predictions, labels)
-        if label and not predicted
-    ]
+    _, records = get_dataset(request.dataset_id)
+    comparison = compare_on_split(request.candidate_rule, records, request.seed, "test")
     return BacktestResponse(
-        evaluated_split="test",
+        evaluated_split=comparison.evaluated_split,
+        dataset_id=request.dataset_id,
         baseline_rule=BASELINE_RULE,
         candidate_rule=request.candidate_rule,
-        baseline_metrics=calculate_metrics(baseline_predictions, labels),
-        candidate_metrics=calculate_metrics(candidate_predictions, labels),
-        fraud_missed_by_baseline=missed,
-        fraud_missed_by_candidate=candidate_missed,
+        baseline_metrics=comparison.baseline_metrics,
+        candidate_metrics=comparison.candidate_metrics,
+        fraud_missed_by_baseline=comparison.fraud_missed_by_baseline,
+        fraud_missed_by_candidate=comparison.fraud_missed_by_candidate,
+        combined_metrics=comparison.combined_metrics,
+        fraud_missed_by_combined=comparison.fraud_missed_by_combined,
     )
 
 
@@ -135,7 +139,9 @@ def discover_rules(
 ) -> DiscoveryReport:
     """Discover thresholds from train, select on validation, and test once."""
     chosen_seed = seed if seed is not None else request.seed if request else DEFAULT_SPLIT_SEED
-    return run_discovery(SYNTHETIC_TRANSACTIONS, chosen_seed)
+    dataset_id = request.dataset_id if request else DEFAULT_DATASET_ID
+    _, records = get_dataset(dataset_id)
+    return run_discovery(records, chosen_seed)
 
 
 def get_sample_transactions() -> list[Transaction]:

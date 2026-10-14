@@ -29,7 +29,7 @@ export type Metrics = {
   total_evaluated: number
 }
 
-export type ApiRoot = { name: string; status: string; health: string }
+export type ApiInfo = { name: string; status: string; version?: string; health: string }
 export type ApiHealth = { status: string }
 export type RuleList = { count: number; items: Rule[] }
 
@@ -58,18 +58,179 @@ export type BacktestReport = {
   fraud_missed_by_candidate?: string[]
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '')
+export type AgentStatus = {
+  configured: boolean
+  model: string
+  framework: string
+  max_llm_calls: number
+  timeout_seconds: number
+  max_candidates: number
+}
+
+export type AdvisorySummary = {
+  advisory_id: string
+  title: string
+  publisher: string
+  source_url: string
+  published_date: string | null
+  retrieved_at: string
+  source_type: string
+  rights_note: string
+  content_sha256: string
+  excerpt: string
+}
+
+export type AdvisoryList = { count: number; items: AdvisorySummary[] }
+
+export type DatasetInfo = {
+  dataset_id: string
+  version: string
+  generator_seed: number
+  size: number
+  synthetic: boolean
+  description: string
+  limitations: string
+}
+
+export type SplitComparison = {
+  evaluated_split: string
+  seed: number
+  baseline_metrics: Metrics
+  candidate_metrics: Metrics
+  combined_metrics: Metrics
+  fraud_missed_by_baseline: string[]
+  fraud_missed_by_candidate: string[]
+  fraud_missed_by_combined: string[]
+}
+
+export type Findings = {
+  technique_name: string
+  summary: string
+  behaviors: string[]
+  indicators: string[]
+  required_fields: string[]
+  testable_hypotheses: string[]
+  uncertainties: string[]
+  evidence_quotes: string[]
+}
+
+export type AgentConclusion = {
+  coverage_assessment: string
+  selected_candidate_rule_id: string | null
+  recommendation: string
+  rationale: string
+  limitations: string[]
+}
+
+export type Coverage = {
+  status: 'testable' | 'partially_testable' | 'not_testable'
+  available_fields: string[]
+  missing_fields: string[]
+  existing_rule_fields: string[]
+  existing_rules_use_required_fields: string[]
+}
+
+export type InvestigationStatus = 'pending_human_review' | 'insufficient_evidence' | 'not_testable' | 'agent_incomplete'
+
+export type InvestigationReport = {
+  investigation_id: string
+  created_at: string
+  origin: 'live' | 'recorded'
+  status: InvestigationStatus
+  headline: string
+  advisory: AdvisorySummary
+  dataset: DatasetInfo
+  seed: number
+  split_sizes: Record<string, number>
+  model_run: {
+    provider: string
+    framework: string
+    model: string
+    model_version: string | null
+    max_llm_calls: number
+    timeout_seconds: number
+    llm_calls: number
+    input_tokens: number
+    output_tokens: number
+    errors: string[]
+  }
+  findings: Findings | null
+  evidence_quotes: { quote: string; verified: boolean }[]
+  coverage: Coverage | null
+  agent_conclusion: AgentConclusion | null
+  candidates: { rule: Rule; validation: SplitComparison }[]
+  selected_rule: Rule | null
+  baseline_rule: Rule
+  holdout: SplitComparison | null
+  holdout_delta: {
+    recall_change: number
+    precision_change: number
+    false_positive_rate_change: number
+    alert_change: number
+    fraud_newly_detected: number
+  } | null
+  guardrails: { check: string; passed: boolean; detail: string }[]
+  trace: { step: number; tool: string; arguments: Record<string, unknown>; ok: boolean; summary: string }[]
+  limitations: string[]
+}
+
+export type ReviewDecision = 'approve' | 'reject' | 'request_changes'
+
+export type ReviewRecord = {
+  review_id: string
+  investigation_id: string
+  rule_id: string
+  rule_version: number
+  decision: ReviewDecision
+  reviewer: string
+  comment: string
+  decided_at: string
+  activation: 'not_activated'
+}
+
+export type StoredInvestigation = { report: InvestigationReport; reviews: ReviewRecord[] }
+
+export type InvestigationSummary = {
+  investigation_id: string
+  created_at: string
+  origin: 'live' | 'recorded'
+  status: InvestigationStatus
+  advisory_title: string
+  advisory_id: string
+  selected_rule_id: string | null
+  review_decision: ReviewDecision | null
+}
+
+export type CustomAdvisory = { title: string; publisher: string; source_url: string; text: string }
+
+const configuredBase = import.meta.env.VITE_API_BASE_URL as string | undefined
+// Deployed builds are served by the API itself, so the same origin is used.
+const API_BASE_URL = (configuredBase || (import.meta.env.PROD ? '' : 'http://localhost:8000')).replace(/\/+$/, '')
+
+export const DEFAULT_TIMEOUT_MS = 10000
+export const INVESTIGATION_TIMEOUT_MS = 180000
 
 export class ApiRequestError extends Error {
-  constructor(message: string) {
+  status?: number
+  constructor(message: string, status?: number) {
     super(message)
     this.name = 'ApiRequestError'
+    this.status = status
   }
 }
 
-export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+function messageForStatus(status: number) {
+  if (status === 422) return 'The API rejected the request. Check the inputs and try again.'
+  if (status === 409) return 'This request conflicts with the current state of the rule or investigation.'
+  if (status === 404) return 'The requested item was not found.'
+  if (status === 429) return 'An investigation is already running. Please wait a moment and retry.'
+  if (status === 503) return 'The Gemini agent is not configured on the server.'
+  return 'The API could not complete the request. Please retry.'
+}
+
+export async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController()
-  const timeoutId = window.setTimeout(() => controller.abort(), 10000)
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
@@ -79,15 +240,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
         ...init?.headers,
       },
     })
-    if (!response.ok) {
-      if (response.status === 422) {
-        throw new ApiRequestError('The API rejected the request. Refresh the dashboard and try again.')
-      }
-      if (response.status === 409) {
-        throw new ApiRequestError('This rule conflicts with the existing baseline rule.')
-      }
-      throw new ApiRequestError('The API could not complete the request. Please retry.')
-    }
+    if (!response.ok) throw new ApiRequestError(messageForStatus(response.status), response.status)
     return (await response.json()) as T
   } catch (error) {
     if (error instanceof ApiRequestError) throw error
@@ -96,5 +249,8 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     window.clearTimeout(timeoutId)
   }
 }
+
+export const postJson = <T,>(path: string, body: unknown, timeoutMs?: number) =>
+  apiRequest<T>(path, { method: 'POST', body: JSON.stringify(body) }, timeoutMs)
 
 export const getApiBaseUrl = () => API_BASE_URL

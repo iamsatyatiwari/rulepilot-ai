@@ -9,6 +9,9 @@ env/
 .mypy_cache/
 .ruff_cache/
 
+# RulePilot local investigation store and audit log
+.rulepilot_data/
+
 # Node
 node_modules/
 frontend/dist/

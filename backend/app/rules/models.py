@@ -29,16 +29,43 @@ class Transaction(BaseModel):
 
     transaction_id: StrictStr | None = None
     amount: NumericValue | None = Field(
-        default=None, json_schema_extra={"rule_eligible": True}
+        default=None,
+        description="Transaction amount in synthetic currency units.",
+        json_schema_extra={"rule_eligible": True},
     )
     account_age_days: StrictInt | None = Field(
-        default=None, json_schema_extra={"rule_eligible": True}
+        default=None,
+        description="Days since the cardholder account was opened.",
+        json_schema_extra={"rule_eligible": True},
     )
     transactions_24h: StrictInt | None = Field(
-        default=None, json_schema_extra={"rule_eligible": True}
+        default=None,
+        description="Transactions on the same card in the preceding 24 hours.",
+        json_schema_extra={"rule_eligible": True},
     )
     distance_from_home_km: NumericValue | None = Field(
-        default=None, json_schema_extra={"rule_eligible": True}
+        default=None,
+        description="Distance between transaction location and cardholder home, in km.",
+        json_schema_extra={"rule_eligible": True},
+    )
+    transactions_1h: StrictInt | None = Field(
+        default=None,
+        ge=0,
+        description="Transactions on the same card in the preceding hour.",
+        json_schema_extra={"rule_eligible": True},
+    )
+    declined_attempts_24h: StrictInt | None = Field(
+        default=None,
+        ge=0,
+        description="Declined authorization attempts on the same card in the preceding 24 hours.",
+        json_schema_extra={"rule_eligible": True},
+    )
+    card_present: StrictInt | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="1 if the card was physically present, 0 for card-not-present (e-commerce).",
+        json_schema_extra={"rule_eligible": True},
     )
     ground_truth_fraud: StrictBool | None = None
 
@@ -57,6 +84,14 @@ def ruleable_fields() -> frozenset[str]:
         for name, field_info in Transaction.model_fields.items()
         if (field_info.json_schema_extra or {}).get("rule_eligible") is True
     )
+
+
+def field_descriptions() -> dict[str, str]:
+    """Return human-readable descriptions for every ruleable field."""
+    return {
+        name: Transaction.model_fields[name].description or ""
+        for name in sorted(ruleable_fields())
+    }
 
 
 class ComparisonOperator(str, Enum):

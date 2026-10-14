@@ -1,0 +1,11 @@
+{
+  "advisory_id": "jpm-card-testing",
+  "title": "Preventing Card Testing: Spot It Early, Stop It Fast",
+  "publisher": "J.P. Morgan Payments (merchant services insights)",
+  "source_url": "https://www.jpmorgan.com/insights/payments/merchant-services/preventing-card-testing-attacks",
+  "published_date": null,
+  "retrieved_at": "2026-10-14",
+  "source_type": "industry_guidance",
+  "rights_note": "Short attributed excerpts quoted for analysis; full text remains at the source URL.",
+  "excerpt": "Card testing is when fraudsters attempt to validate stolen card details by making $0 or low-dollar transactions.\nFraud tactics are evolving, and card testing attacks are increasingly targeting e-commerce and mobile checkout.\nThey run $0 or small-dollar attempts at real merchants to confirm a card is active and may retry to fill in missing details (like CVV or expiration date).\nAutomated testing is the most common.\nMany different card numbers attempted in a short time—often from the same IP address, device or small set of sessions.\nMore failed payments than usual, including repeated CVV or expiration date mismatch errors.\nMultiple attempts on the same card or session where only one field changes each time (for example, cycling CVV or expiration date values).\nA wave of $0 authorizations or low-dollar transactions used to test cards with minimal cost and attention."
+}

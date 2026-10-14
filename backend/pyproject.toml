@@ -4,12 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rulepilot-api"
-version = "0.2.0"
+version = "0.3.0"
 description = "RulePilot AI API for continuous financial rule intelligence"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi==0.115.12",
+    "fastapi==0.141.1",
     "uvicorn[standard]==0.34.2",
+    "pydantic==2.14.1",
+    "google-adk==2.10.0",
+    "google-genai==2.30.1",
+    "python-dotenv==1.2.4",
 ]
 
 [project.optional-dependencies]

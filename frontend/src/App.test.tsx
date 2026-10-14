@@ -89,10 +89,11 @@ describe('RulePilot dashboard API integration', () => {
       if (url.endsWith('/api/v1/rules')) return jsonResponse({ count: 1, items: [baselineRule] })
       if (url.endsWith('/api/v1/rules/discover')) return jsonResponse(discovery)
       if (url.endsWith('/api/v1/backtests/run')) return jsonResponse(backtest)
-      if (url.endsWith('/')) return jsonResponse({ name: 'RulePilot AI API', status: 'ready', health: '/health' })
+      if (url.endsWith('/api/v1/info')) return jsonResponse({ name: 'RulePilot AI API', status: 'ready', health: '/health' })
       return jsonResponse({}, 404)
     })
     vi.stubGlobal('fetch', fetchMock)
+    window.location.hash = '#engine'
   })
 
   afterEach(() => {
@@ -108,7 +109,7 @@ describe('RulePilot dashboard API integration', () => {
     expect(screen.getByText('greater_than')).toBeInTheDocument()
     expect(screen.getByText('Pending human review')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /approve|reject/i })).not.toBeInTheDocument()
-    expect(screen.getByText(/no persistent approve\/reject endpoint/i)).toBeInTheDocument()
+    expect(screen.getByText(/no rule is ever activated from this dashboard/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /run backtest on held-out test split/i }))
 
