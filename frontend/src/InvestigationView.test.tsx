@@ -118,15 +118,22 @@ function jsonResponse(payload: unknown, status = 200) {
 describe('Intelligence investigations workspace', () => {
   let fetchMock: ReturnType<typeof vi.fn>
   let stored: { report: ReturnType<typeof report>; reviews: unknown[] }
+  let fetched: unknown[] = []
 
   beforeEach(() => {
     window.location.hash = '#investigations'
     stored = { report: report(), reviews: [] }
+    fetched = []
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.endsWith('/health')) return jsonResponse({ status: 'ok' })
       if (url.endsWith('/api/v1/agent/status')) return jsonResponse({ configured: true, model: 'gemini-3.8-flash', framework: 'google-adk', max_llm_calls: 12, timeout_seconds: 120, max_candidates: 3 })
-      if (url.endsWith('/api/v1/advisories')) return jsonResponse({ count: 2, items: [advisory, simAdvisory] })
+      if (url.endsWith('/api/v1/advisories')) return jsonResponse({ count: 2 + fetched.length, items: [advisory, simAdvisory, ...fetched] })
+      if (url.endsWith('/api/v1/feeds/status')) return jsonResponse({ enabled: true, source: 'https://www.ic3.gov/PSA/RSS', fetched_advisories: fetched.length, last_refresh: fetched.length ? { checked_at: '2026-10-16T10:00:00Z', feed_items: 5, new_advisories: ['ic3-261016'], skipped_not_fraud: ['Election workers'], errors: [] } : null })
+      if (url.endsWith('/api/v1/feeds/refresh')) {
+        fetched = [{ ...simAdvisory, advisory_id: 'ic3-261016', title: 'Scammers Use Gift Card Testing Against Retailers', rights_note: 'U.S. Government public service announcement (public domain); fetched automatically by the scheduled job.' }]
+        return jsonResponse({ checked_at: '2026-10-16T10:00:00Z', feed_items: 5, new_advisories: ['ic3-261016'], skipped_not_fraud: ['Election workers'], errors: [] })
+      }
       if (url.endsWith('/api/v1/investigations') && init?.method === 'POST') {
         const body = JSON.parse(String(init.body))
         if (body.advisory_id === simAdvisory.advisory_id) {
@@ -250,5 +257,15 @@ describe('Intelligence investigations workspace', () => {
     render(<App />)
     expect(await screen.findByText(/no Gemini credentials are configured/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: `Investigate ${advisory.title}` })).toBeDisabled()
+  })
+
+  it('checks public feeds and lists fetched alerts; data choice sits under Advanced options', async () => {
+    render(<App />)
+    await screen.findByText(/Not checked yet/)
+    expect(screen.getByText('Advanced options')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /check for new public alerts/i }))
+    expect(await screen.findByText('Scammers Use Gift Card Testing Against Retailers')).toBeInTheDocument()
+    expect(screen.getByText('Fetched by scheduled job')).toBeInTheDocument()
+    expect(await screen.findByText(/1 new fraud alert\(s\), 1 skipped as not fraud-related/)).toBeInTheDocument()
   })
 })

@@ -409,3 +409,6 @@ export type ReportsSummary = {
   digest_advisory_id: string | null
   digest_preview: string | null
 }
+
+export type RefreshResult = { checked_at: string; feed_items: number; new_advisories: string[]; skipped_not_fraud: string[]; errors: string[] }
+export type FeedStatus = { enabled: boolean; source: string; fetched_advisories: number; last_refresh: RefreshResult | null }

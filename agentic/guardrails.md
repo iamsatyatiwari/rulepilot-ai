@@ -5,7 +5,7 @@ These are product requirements, not style preferences. A change that breaks one 
 ## Model and agent
 
 1. The model never executes code. No `eval`, `exec`, generated Python, SQL, or shell. Rules are data validated by `app/rules/models.py`.
-2. The agent has only the tools in `InvestigationToolkit.agent_tools()`. Never add network, file, shell, database, or arbitrary-HTTP tools.
+2. The agent has only the tools in `InvestigationToolkit.agent_tools()`. Never add network, file, shell, database, or arbitrary-HTTP tools. Public alerts are fetched by scheduled **code** (`app/intel/feeds.py`) from a fixed allowlist (FBI IC3), never by the model; fetched text is untrusted data.
 3. Every tool validates input, is bounded, and returns `{"ok": false, "error": ...}` instead of raising.
 4. Agent bounds stay configured: max model calls (`RULEPILOT_AGENT_MAX_LLM_CALLS`), timeout, ≤ 3 candidates, ≤ 3 conditions, advisory size limits.
 5. Advisory text and reviewer comments are **untrusted data**. They are delimited in the prompt and never concatenated into instructions.

@@ -152,3 +152,14 @@ gcloud scheduler jobs run rulepilot-ingest --location asia-southeast1   # trigge
 5. **Normal day:** nothing flagged. A 1,899 *MegaTech Electronics* payment is *Held for review* by the active rule.
 
 The step-by-step walkthrough for every page is in [ui-guide.md](ui-guide.md) section 1.
+
+## 14. Run the scheduled job locally (public alerts and customer reports)
+
+1. Put `RULEPILOT_INGEST_TOKEN=<any-local-secret>` in `backend/.env` and restart the backend.
+2. Simulate one Cloud Scheduler tick:
+   ```bash
+   curl -X POST http://127.0.0.1:8000/api/v1/ingestion/run -H "X-RulePilot-Ingest-Token: <any-local-secret>"
+   ```
+   It refreshes the FBI IC3 feed, then investigates one item: a new curated or fetched advisory, otherwise the digest of 3+ customer-reported frauds the active rules missed. The response lists what was fetched and investigated.
+3. Without the token, use **Check for new public alerts** (Investigations) and **Investigate reports now** (Demo bank).
+4. On this Mac, Python needs `certifi` for HTTPS (the python.org build has no system CA bundle); the fetcher already uses it.

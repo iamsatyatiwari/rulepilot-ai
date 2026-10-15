@@ -672,3 +672,10 @@ details.catalog-panel[open] { padding: 0 0 12px; }
 .digest { margin-bottom: 10px; font-size: 12px; color: #4f6157; }
 .digest summary { cursor: pointer; color: var(--green); font-weight: 600; }
 @media (max-width: 900px) { .lab-grid { grid-template-columns: 1fr; } }
+
+.feed-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 10px; }
+.feed-bar small { flex: 1 1 320px; line-height: 1.5; }
+.advanced-options { margin: 0 0 12px; font-size: 12px; }
+.advanced-options > summary { cursor: pointer; color: #4f6157; font-weight: 600; }
+.advanced-options[open] > summary { margin-bottom: 8px; }
+.fetched-tag { margin-left: 6px; color: #2f5d8a; background: #e8f0f8; }

@@ -235,12 +235,19 @@ ACTIVATION, RULE LAB, CUSTOMER REPORTS (2026-10-16)
     customer_report_check shows how many reported cases the rule catches.
   * Review panel shows a confirmation after a decision (fixes double
     approvals); bank names the scenario each approved rule reacts to.
+  * Public alert feeds (app/intel/feeds.py): the scheduled job (and
+    POST /feeds/refresh) fetches the FBI IC3 PSA RSS feed and pages from an
+    allowlist, with timeout, size cap, and a fraud keyword filter; new
+    alerts become advisories (public domain) and are investigated one per
+    run. Live check 16 Oct: 5 feed items, 4 stored, 1 skipped (not fraud).
+    Uses certifi for TLS. Tests never touch the network (conftest).
+  * "Test against data" moved under Advanced options with an explanation.
 
 
 VERIFICATION RESULTS (2026-10-14)
 ---------------------------------
-  * Backend: 133 pytest tests passed (112 before 15 Oct afternoon) (96 before v3, 82 at M4, 36 at M2B).
-  * Frontend: 21 Vitest tests passed (14 before) (10 at M4, 5 at M2B); tsc and Vite
+  * Backend: 139 pytest tests passed (112 before 15 Oct afternoon) (96 before v3, 82 at M4, 36 at M2B).
+  * Frontend: 22 Vitest tests passed (14 before) (10 at M4, 5 at M2B); tsc and Vite
     build passed.
   * Production-mode run (FastAPI serving the built dashboard) and the
     Firestore emulator: backend/scripts/smoke_check.py passes; state survives

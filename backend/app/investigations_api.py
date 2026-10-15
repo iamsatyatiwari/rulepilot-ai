@@ -6,7 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
@@ -32,6 +32,8 @@ from app.governance import (
 )
 from app.baseline import BASELINE_RULE
 from app.intel.advisories import Advisory, AdvisorySummary, load_curated_advisories, summarize
+from app.intel import feeds
+from app.intel.feeds import RefreshResult, feed_store
 from app.rules.models import Rule
 from app.storage import create_backend
 
@@ -96,9 +98,17 @@ class AgentStatus(BaseModel):
     max_candidates: int = 3
 
 
-def _resolve_advisory(request: InvestigationRequest) -> Advisory:
+FEED_REFRESH_COOLDOWN_SECONDS = 300
+
+
+def all_advisories(store: GovernanceStore) -> dict[str, Advisory]:
+    """Curated advisories first, then public alerts fetched by the scheduled job (newest first)."""
+    return {**load_curated_advisories(), **feed_store(store.backend).advisories()}
+
+
+def _resolve_advisory(request: InvestigationRequest, store: GovernanceStore) -> Advisory:
     if request.advisory_id is not None:
-        advisory = load_curated_advisories().get(request.advisory_id)
+        advisory = all_advisories(store).get(request.advisory_id)
         if advisory is None:
             raise HTTPException(status_code=404, detail="unknown advisory_id")
         return advisory
@@ -119,9 +129,9 @@ def _resolve_advisory(request: InvestigationRequest) -> Advisory:
 
 
 @router.get("/advisories", response_model=AdvisoryListResponse, tags=["intelligence"])
-def list_advisories() -> AdvisoryListResponse:
-    """List curated intelligence documents with source metadata and content hashes."""
-    items = [summarize(advisory) for advisory in load_curated_advisories().values()]
+def list_advisories(store: GovernanceStore = Depends(get_store)) -> AdvisoryListResponse:
+    """Curated advisories and fetched public alerts, with source metadata and content hashes."""
+    items = [summarize(advisory) for advisory in all_advisories(store).values()]
     return AdvisoryListResponse(count=len(items), items=items)
 
 
@@ -143,7 +153,7 @@ async def create_investigation(
     store: GovernanceStore = Depends(get_store),
 ) -> StoredInvestigation:
     """Run the bounded agent on one advisory, then verify and backtest deterministically."""
-    advisory = _resolve_advisory(request)
+    advisory = _resolve_advisory(request, store)
     if not settings.gemini_configured:
         raise HTTPException(status_code=503, detail="Gemini is not configured on the server")
     if _run_slots.locked():
@@ -212,6 +222,34 @@ class IngestionResult(BaseModel):
     already_investigated: list[str]
     remaining: list[str]
     customer_reports: ReportsSummary | None = None
+    feed_refresh: RefreshResult | None = None
+
+
+class FeedStatus(BaseModel):
+    enabled: bool
+    source: str = feeds.IC3_FEED
+    fetched_advisories: int
+    last_refresh: RefreshResult | None
+
+
+@router.get("/feeds/status", response_model=FeedStatus, tags=["intelligence"])
+def feed_status(settings: Settings = Depends(get_settings), store: GovernanceStore = Depends(get_store)) -> FeedStatus:
+    """What the scheduled job last fetched from public fraud alert feeds."""
+    fs = feed_store(store.backend)
+    return FeedStatus(enabled=settings.feeds_enabled, fetched_advisories=len(fs.advisories()), last_refresh=fs.last_refresh())
+
+
+@router.post("/feeds/refresh", response_model=RefreshResult, tags=["intelligence"])
+def refresh_feeds(settings: Settings = Depends(get_settings), store: GovernanceStore = Depends(get_store)) -> RefreshResult:
+    """Check the public feeds now (the scheduled job does this on every run). At most once every 5 minutes."""
+    if not settings.feeds_enabled:
+        raise HTTPException(status_code=503, detail="public feed fetching is disabled on the server")
+    fs = feed_store(store.backend)
+    last = fs.last_refresh()
+    # Repeat clicks within the cooldown reuse a successful result; a failed check can be retried at once.
+    if last and not last.errors and (datetime.now(timezone.utc) - last.checked_at).total_seconds() < FEED_REFRESH_COOLDOWN_SECONDS:
+        return last
+    return fs.refresh(feeds.http_fetch)
 
 
 def _reports_state(store: GovernanceStore):
@@ -292,8 +330,9 @@ async def run_ingestion(
     if not settings.gemini_configured:
         raise HTTPException(status_code=503, detail="Gemini is not configured on the server")
 
+    refresh = feed_store(store.backend).refresh(feeds.http_fetch) if settings.feeds_enabled else None
     done = store.investigated_sources()
-    advisories = list(load_curated_advisories().values())
+    advisories = list(all_advisories(store).values())
     already = [a.advisory_id for a in advisories if (a.advisory_id, a.content_sha256) in done]
     pending = [a for a in advisories if a.advisory_id not in already]
     investigated: list[InvestigationSummary] = []
@@ -322,4 +361,5 @@ async def run_ingestion(
         already_investigated=already,
         remaining=[a.advisory_id for a in pending if a.advisory_id not in processed],
         customer_reports=_reports_state(store)[0],
+        feed_refresh=refresh,
     )

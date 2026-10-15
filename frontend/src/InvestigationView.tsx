@@ -33,6 +33,8 @@ import {
   type AdvisorySummary,
   type AgentStatus,
   type CustomAdvisory,
+  type FeedStatus,
+  type RefreshResult,
   type InvestigationReport,
   type InvestigationStatus,
   type InvestigationSummary,
@@ -404,6 +406,8 @@ export default function InvestigationView() {
   const [custom, setCustom] = useState<CustomAdvisory>(EMPTY_CUSTOM)
   const [catalog, setCatalog] = useState<RuleCatalog | null>(null)
   const [datasetId, setDatasetId] = useState(DATASET_OPTIONS[0].id)
+  const [feedStatus, setFeedStatus] = useState<FeedStatus | null>(null)
+  const [checkingFeeds, setCheckingFeeds] = useState(false)
 
   const refreshCatalog = useCallback(async () => {
     try {
@@ -430,6 +434,7 @@ export default function InvestigationView() {
   const load = useCallback(async () => {
     setLoading(true)
     setLoadError('')
+    apiRequest<FeedStatus>('/api/v1/feeds/status').then(setFeedStatus).catch(() => setFeedStatus(null))
     const [status, advisoryList, items] = await Promise.allSettled([
       apiRequest<AgentStatus>('/api/v1/agent/status'),
       apiRequest<AdvisoryList>('/api/v1/advisories'),
@@ -470,6 +475,21 @@ export default function InvestigationView() {
     }
   }
 
+  const checkFeeds = async () => {
+    setCheckingFeeds(true)
+    setRunError('')
+    try {
+      await postJson<RefreshResult>('/api/v1/feeds/refresh', {}, 60000)
+      const [list, status] = await Promise.all([apiRequest<AdvisoryList>('/api/v1/advisories'), apiRequest<FeedStatus>('/api/v1/feeds/status')])
+      setAdvisories(list.items)
+      setFeedStatus(status)
+    } catch (error) {
+      setRunError(safeMessage(error))
+    } finally {
+      setCheckingFeeds(false)
+    }
+  }
+
   const submitCustom = (event: FormEvent) => {
     event.preventDefault()
     void investigate(custom.title || 'Custom advisory', { custom_advisory: custom })
@@ -495,15 +515,27 @@ export default function InvestigationView() {
 
       <section className="source-section" aria-label="Intelligence sources">
         <div className="section-heading"><div><div className="section-kicker">STEP 1 · CHOOSE AN ADVISORY</div><h2>Fraud advisories</h2><p>Press Investigate on one. Gemini treats the text as untrusted data and has no web, file, or code tools.</p></div><button className="secondary-button" onClick={() => setShowCustom((value) => !value)} aria-expanded={showCustom}><ClipboardPaste size={15} /> {showCustom ? 'Close' : 'Paste an advisory'}</button></div>
-        <label className="dataset-picker">Test against data
-          <select value={datasetId} onChange={(event) => setDatasetId(event.target.value)}>
-            {DATASET_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-          </select>
-        </label>
+        <div className="feed-bar">
+          <button className="secondary-button" onClick={() => void checkFeeds()} disabled={checkingFeeds || !feedStatus?.enabled}>{checkingFeeds ? <LoaderCircle size={15} className="spin" /> : <RefreshCw size={15} />} Check for new public alerts</button>
+          <small className="muted-text">
+            {feedStatus?.enabled === false ? 'Fetching public alerts is turned off on this server.' : feedStatus?.last_refresh
+              ? `The scheduled job checks the FBI IC3 alert feed. Last check ${new Date(feedStatus.last_refresh.checked_at).toLocaleString()}: ${feedStatus.last_refresh.new_advisories.length} new fraud alert(s), ${feedStatus.last_refresh.skipped_not_fraud.length} skipped as not fraud-related${feedStatus.last_refresh.errors.length ? `, ${feedStatus.last_refresh.errors.length} error(s)` : ''}. ${feedStatus.fetched_advisories} fetched in total.`
+              : 'The scheduled job checks the FBI IC3 alert feed for new fraud alerts. Not checked yet.'}
+          </small>
+        </div>
+        <details className="advanced-options">
+          <summary>Advanced options</summary>
+          <label className="dataset-picker">Test against data
+            <select value={datasetId} onChange={(event) => setDatasetId(event.target.value)}>
+              {DATASET_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+            </select>
+          </label>
+          <p className="muted-text">Which historical transactions the proposed rule is measured on. Keep the default. Switch to <i>Sparkov cards v1</i> to see the honesty check: it has no SIM or device data, so a SIM-swap advisory comes back “not testable” instead of a made-up rule.</p>
+        </details>
         <div className="advisory-grid">
           {advisories.map((advisory) => (
             <article key={advisory.advisory_id} className="advisory-card">
-              <div className="advisory-top"><span className="source-type">{SOURCE_LABEL[advisory.source_type] ?? advisory.source_type}</span><small>{advisory.published_date ?? `Retrieved ${advisory.retrieved_at}`}</small></div>
+              <div className="advisory-top"><span className="source-type">{SOURCE_LABEL[advisory.source_type] ?? advisory.source_type}</span>{advisory.rights_note.includes('fetched automatically') && <span className="source-type fetched-tag">Fetched by scheduled job</span>}<small>{advisory.published_date ?? `Retrieved ${advisory.retrieved_at}`}</small></div>
               <h3>{advisory.title}</h3>
               <p className="advisory-publisher">{advisory.publisher}</p>
               <p className="advisory-excerpt">{advisory.excerpt.slice(0, 210)}…</p>

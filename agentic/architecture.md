@@ -9,6 +9,7 @@
 | Deterministic engine | Rule schema, evaluation, metrics, datasets, splits, discovery, backtests | `backend/app/rules/`, `evaluation.py`, `data.py`, `datasets.py`, `discovery.py`, `backtest.py` |
 | Governance | Investigation store, review decisions, reviewed rule catalog, review history, audit log | `backend/app/governance.py`, `backend/app/storage.py` |
 | Transaction scoring (mock bank side) | Score one transaction or a mock feed: active rules decide, approved rules run in shadow | `backend/app/scoring.py`, `backend/app/transactions_api.py`, `create_demo_feed` in `data.py` |
+| Public alert feeds | Allowlisted fetch of FBI IC3 PSAs (RSS + pages) by code, fraud keyword filter, stored as advisories | `backend/app/intel/feeds.py` |
 | Rule lab and customer reports | Per-condition explanation, generated examples, labelled test cases (analyst or customer-reported); digest of missed reports investigated by the agent | `backend/app/rule_lab.py`, `lab_api.py`, `customer_reports.py` |
 | Demo bank | Fictional cards; derives features from the card's recent activity sent by the browser, then scores like the monitor | `backend/app/bank.py`, `backend/app/bank_api.py` |
 | HTTP | Versioned API, static dashboard in production | `backend/app/main.py`, `api.py`, `investigations_api.py` |
@@ -94,6 +95,8 @@ sequenceDiagram
 | GET | `/bank/catalog` | Demo cards and merchants (fictional) |
 | POST | `/bank/payments` | `{card_id, merchant_id, amount, at (with UTC offset), cvv_correct, new_device, history[≤200], security_events[≤50]}` → outcome (approved / held_for_review / declined_by_issuer), derived features, active decision and shadow verdicts |
 | POST | `/bank/reports` | `{payment, note}` → customer fraud report stored as a test case (features re-derived on the server) |
+| GET | `/feeds/status` | Whether feed fetching is on, how many alerts were fetched, the last check |
+| POST | `/feeds/refresh` | Check the IC3 feed now (reuses a successful result for 5 minutes) |
 | GET | `/lab/rules` | Baseline, approved (active) rules, and every candidate |
 | POST | `/lab/explain` | `{rule, transaction}` → each condition with value and pass/fail, overall verdict |
 | POST | `/lab/generate` | `{rule, match}` → a transaction the rule flags, or a near miss |
@@ -123,6 +126,7 @@ Status codes used by investigations: 404 unknown advisory, 409 nothing to review
 | `RULEPILOT_DATA_DIR` | `backend/.rulepilot_data` | Local store and audit log |
 | `RULEPILOT_STATIC_DIR` | unset | Built dashboard path; set in Docker |
 | `RULEPILOT_INGEST_TOKEN` | unset | Secret for `/ingestion/run`; unset disables it (secret) |
+| `RULEPILOT_FEEDS_ENABLED` | `true` | Fetch FBI IC3 alerts in the scheduled job and via `/feeds/refresh` |
 
 Frontend: `VITE_API_BASE_URL` (dev default `http://localhost:8000`; production builds use the same origin).
 
@@ -144,7 +148,7 @@ Each transaction is scored with the label removed. The baseline **and every appr
 
 ## Scheduled ingestion
 
-Cloud Scheduler calls `POST /api/v1/ingestion/run` with the shared token. Each call investigates at most one item: first a curated advisory that has no live or scheduled run for its current content hash, so adding or editing a file in `intel/advisories/` triggers a new investigation on the next tick. Recorded demo runs do not count. If no curated advisory is pending and 3 or more customer-reported frauds are missed by the active rules, it investigates the code-written digest of those reports instead (`customer_report_check` on the report). Runs are stored with `origin: "scheduled"` and audited like any other.
+Cloud Scheduler calls `POST /api/v1/ingestion/run` with the shared token. Each call first refreshes the public feeds (FBI IC3 PSAs, `RULEPILOT_FEEDS_ENABLED`, default on), then investigates at most one item: first a curated or fetched advisory that has no live or scheduled run for its current content hash, so adding or editing a file in `intel/advisories/` triggers a new investigation on the next tick. Recorded demo runs do not count. If no curated advisory is pending and 3 or more customer-reported frauds are missed by the active rules, it investigates the code-written digest of those reports instead (`customer_report_check` on the report). Runs are stored with `origin: "scheduled"` and audited like any other.
 
 ## Deployment shape
 

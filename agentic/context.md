@@ -43,9 +43,9 @@ First vertical slice: payment-card fraud. Account takeover, scams, and AML are f
 | `payments-scenario-v3` dataset (30k rows, 12 fields) and golden-set evaluation (L4) | Done locally; live golden run passes on v3 |
 | `sparkov-cards-v1` (75k rows from the independent MIT-licensed Sparkov simulator) | Done locally |
 | Demo bank, Start here guide, simplified investigations UI | Done locally |
-| Approval activates rules (16 Oct team decision); Rule lab; customer fraud reports feeding the scheduled job | Done locally |
+| Approval activates rules (16 Oct team decision); Rule lab; customer fraud reports and FBI IC3 alert fetching feeding the scheduled job | Done locally |
 
-Latest verification: 133 backend tests, 21 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
+Latest verification: 139 backend tests, 22 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
 
 ## Key decisions (do not reverse without a demonstrated need)
 

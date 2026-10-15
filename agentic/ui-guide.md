@@ -20,8 +20,8 @@ Source files: `frontend/src/App.tsx` (shell), `GuideView.tsx`, `InvestigationVie
 **Before you start:** the top bar says **API connected**. On Investigations, the agent chip reads *model · ready*. If it says *not configured*, live runs are disabled, but every step below still works with the recorded runs.
 
 **Step 1: investigate an advisory.**
-1. Open **Investigations**.
-2. Leave **Test against data** on *Payments scenario v3*.
+1. Open **Investigations**. Optionally press **Check for new public alerts**: the app fetches the FBI IC3 alert feed (the scheduled job does this on every run), keeps fraud-related alerts, and adds them as cards tagged *Fetched by scheduled job*. The line next to the button says when it last checked and what it found.
+2. Leave **Advanced options → Test against data** alone (default *Payments scenario v3*). It only chooses which historical transactions rules are measured on; see Step 7.
 3. Press **Investigate** on *Preventing Card Testing*. A progress card counts the seconds; a run takes 20–90 s.
 4. No key or no quota? Click the *Preventing Card Testing … recorded* chip in **History** instead.
 
@@ -61,7 +61,7 @@ Source files: `frontend/src/App.tsx` (shell), `GuideView.tsx`, `InvestigationVie
 
 **Step 7: the learning loop and honesty.**
 1. Investigate the same advisory again: **Covered by existing rules**.
-2. Switch **Test against data** to *Sparkov cards v1* and investigate *SIM Swap*: **Not testable with available data**; no rule is invented.
+2. Open **Advanced options** and switch **Test against data** to *Sparkov cards v1* and investigate *SIM Swap*: **Not testable with available data**; no rule is invented.
 
 **Step 8 (optional): batch view.** **Advanced → Transaction monitor → Stream 20 transactions**: rows *Caught by approved rule* are fraud only the approved rules stopped.
 

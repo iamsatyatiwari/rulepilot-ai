@@ -26,7 +26,7 @@ advisory → structured findings → coverage-gap check → candidate rules
 | **Rule lab** | Pick a rule, build a test transaction next to it, generate matching or near-miss examples, label and save them, and run every saved case against any rule. |
 | **Customer fraud reports** | Press *Report fraud* in the Demo bank. When 3+ reported frauds slip past the active rules, the scheduled job asks Gemini to investigate what they share, and shows how many reported cases the proposed rule would catch. |
 | Transaction monitor | A mock bank feed scores fresh synthetic transactions with the original rule plus every approved rule, and counts the extra fraud the approved rules catch. |
-| Scheduled ingestion | A token-protected endpoint lets Cloud Scheduler investigate new or changed advisories automatically. |
+| Scheduled ingestion (cron) | Cloud Scheduler calls a token-protected endpoint. Each run fetches new **FBI IC3 fraud alerts** (public domain; allowlisted, fetched by code, not by the model), then investigates one new alert, or the digest of customer-reported frauds the rules missed. |
 
 ## Architecture
 
@@ -106,8 +106,8 @@ docker run -p 8080:8080 -e GOOGLE_API_KEY=... rulepilot-ai   # http://localhost:
 ## Checks
 
 ```bash
-cd backend && .venv/bin/python -m pytest -q          # 133 tests, no Gemini calls
-cd frontend && npm test && npx tsc -b && npm run build   # 21 tests
+cd backend && .venv/bin/python -m pytest -q          # 139 tests, no Gemini calls
+cd frontend && npm test && npx tsc -b && npm run build   # 22 tests
 cd backend && .venv/bin/python scripts/golden_eval.py    # live golden set (needs a key)
 cd backend && .venv/bin/python scripts/smoke_check.py http://127.0.0.1:8000
 ```

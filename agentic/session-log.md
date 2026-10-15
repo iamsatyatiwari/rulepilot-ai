@@ -23,7 +23,8 @@ This file carries working state from one AI-assistant session (context window) t
 - **GitHub:** `gh` logged in as `shuklapiyush113` (collaborator, write). Repo is public.
 - **Done 15 Oct afternoon:** `sparkov-cards-v1` (Sparkov run in an isolated venv in the session scratchpad; not in the repo), demo bank, Start here guide, summary-first investigations, ui-guide step-by-step. 123 backend / 18 frontend tests; local production-mode end-to-end verified.
 - **Done 16 Oct:** approval activates rules (user chose this over a separate activation step); Rule lab; customer fraud reports + digest investigations (scheduled job and button). 133 backend / 21 frontend tests. Local servers: backend :8000, frontend :5173.
-- **User's "caller ban"** = the cron job fetching new fraud types + customer-reported frauds. Reports part done; fetching public feeds (IC3/FTC) is task L10, not started.
+- **User's "caller ban"** = the cron job fetching public fraud reports. Done 16 Oct: FBI IC3 PSA feed (`app/intel/feeds.py`), plus customer reports. FTC has no usable RSS feed. "Test against data" moved under Advanced options.
+- **User's architecture image** is not available in this conversation (it was in an earlier session); ask them to re-attach to compare box by box.
 - **Next steps:** user merges the Sparkov/demo-bank PR → enable billing + GCP project ID + `gcloud` (not installed) → Cloud Run deploy (skill 9) → README live URL → deck → video.
 
 ## Local environment (macOS)
@@ -56,6 +57,9 @@ git diff --check
 ```
 
 ## Log
+
+### 2026-10-16 — public alert feeds
+- Clarified "caller ban" = cron fetching public fraud reports. Built IC3 feed fetching; live check stored 4 alerts. 139 backend / 22 frontend tests.
 
 ### 2026-10-16 — activation, rule lab, customer reports
 - User: approval should activate rules; wanted manual test data with the rule side by side; "caller ban" = cron fetching new frauds + customer reports.
