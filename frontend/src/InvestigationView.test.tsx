@@ -120,7 +120,7 @@ describe('Intelligence investigations workspace', () => {
   let stored: { report: ReturnType<typeof report>; reviews: unknown[] }
 
   beforeEach(() => {
-    window.location.hash = ''
+    window.location.hash = '#investigations'
     stored = { report: report(), reviews: [] }
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -168,13 +168,14 @@ describe('Intelligence investigations workspace', () => {
     expect(screen.getByText('Verified in source')).toBeInTheDocument()
     expect(screen.getByText('Not found in source')).toBeInTheDocument()
     expect(screen.getByText('ip_address')).toBeInTheDocument()
-    expect(screen.getByText('+51.3 pp')).toBeInTheDocument()
+    expect(within(screen.getByLabelText('Held-out changes')).getByText('+51.3 pp')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Summary' })).getByText(/catches/)).toBeInTheDocument()
     expect(screen.getByText('Rejected: fields not available in this dataset: ip_address')).toBeInTheDocument()
     expect(screen.getByText(/1 of 2 quotes found verbatim/)).toBeInTheDocument()
     expect(screen.getByRole('table', { name: /candidate rules and validation metrics/i })).toHaveTextContent('Selected')
 
     const post = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/api/v1/investigations') && init?.method === 'POST')
-    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ advisory_id: advisory.advisory_id })
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ advisory_id: advisory.advisory_id, dataset_id: 'payments-scenario-v3' })
   })
 
   it('records a human review decision without activating the rule', async () => {

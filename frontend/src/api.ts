@@ -327,3 +327,45 @@ export const postJson = <T,>(path: string, body: unknown, timeoutMs?: number) =>
   apiRequest<T>(path, { method: 'POST', body: JSON.stringify(body) }, timeoutMs)
 
 export const getApiBaseUrl = () => API_BASE_URL
+
+export type DemoCard = {
+  card_id: string
+  holder: string
+  label: string
+  last4: string
+  account_age_days: number
+  days_since_sim_change: number
+  description: string
+}
+
+export type BankMerchant = {
+  merchant_id: string
+  name: string
+  channel: 'online' | 'in_store'
+  distance_from_home_km: number
+  typical_amount: number
+}
+
+export type BankCatalog = { cards: DemoCard[]; merchants: BankMerchant[]; disclaimer: string }
+
+export type BankHistoryItem = { at: string; merchant_id: string; amount: number; declined: boolean }
+export type SecurityEvent = { at: string; type: 'sim_change' | 'credential_reset' | 'new_device_login' }
+
+export type PaymentRequest = {
+  card_id: string
+  merchant_id: string
+  amount: number
+  at: string
+  cvv_correct: boolean
+  new_device: boolean
+  history: BankHistoryItem[]
+  security_events: SecurityEvent[]
+}
+
+export type PaymentResult = {
+  outcome: 'approved' | 'held_for_review' | 'declined_by_issuer'
+  explanation: string
+  shadow_summary: string
+  features: Transaction
+  score: TransactionScore
+}

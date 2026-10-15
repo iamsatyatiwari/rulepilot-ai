@@ -40,7 +40,7 @@ import {
   type RuleCatalog,
   type StoredInvestigation,
 } from './api'
-import { CandidateConditions, MetricColumn, formatCount, formatDelta, formatPercent, safeMessage } from './components'
+import { CandidateConditions, MetricColumn, formatCount, formatDelta, formatPercent, ruleText, safeMessage } from './components'
 
 const STATUS_LABEL: Record<InvestigationStatus, string> = {
   pending_human_review: 'Pending human review',
@@ -168,7 +168,9 @@ function referenceRules(report: InvestigationReport) {
 function RuleCatalogPanel({ catalog }: { catalog: RuleCatalog | null }) {
   if (!catalog) return null
   return (
-    <section className="panel catalog-panel" aria-label="Reviewed rule catalog">
+    <section aria-label="Reviewed rule catalog">
+    <details className="panel catalog-panel">
+      <summary className="catalog-summary">Reviewed rule catalog <small>{catalog.active.length} active · {catalog.approved_not_active.length} approved (shadow)</small></summary>
       <div className="panel-heading"><div><div className="section-kicker">LEARNING LOOP · REVIEWED RULE CATALOG</div><h2>Rules every new investigation is compared against</h2><p>Approved candidates join the reviewed rule set and inform future investigations. Approval is not activation: approved rules stay inactive until a separate deployment decision.</p></div><span className="review-icon"><GitBranch size={17} /></span></div>
       <ul className="catalog-list">
         {catalog.active.map((rule) => (
@@ -179,6 +181,24 @@ function RuleCatalogPanel({ catalog }: { catalog: RuleCatalog | null }) {
         ))}
       </ul>
       {catalog.approved_not_active.length === 0 && <p className="muted-text">No candidates have been approved yet. Approve one in Human review and re-run an investigation to see it used.</p>}
+    </details>
+    </section>
+  )
+}
+
+function Summary({ report }: { report: InvestigationReport }) {
+  const { findings, coverage, holdout_delta: delta, selected_rule: rule } = report
+  const verified = report.evidence_quotes.filter((quote) => quote.verified).length
+  return (
+    <section className="panel summary-panel" aria-label="Summary">
+      <div className="panel-heading"><div><div className="section-kicker">IN PLAIN WORDS</div><h2>What RulePilot found</h2></div></div>
+      <ol className="summary-list">
+        <li><strong>The advisory</strong><span>{findings ? `${findings.technique_name}: ${findings.summary}` : 'The agent did not finish reading the advisory.'} {report.evidence_quotes.length > 0 && <em>({verified} of {report.evidence_quotes.length} quotes checked word-for-word in the source)</em>}</span></li>
+        <li><strong>Can our data test it?</strong><span>{coverage ? (coverage.status === 'not_testable' ? `No. The data has none of the fields it needs (${coverage.missing_fields.join(', ')}), so no rule was invented.` : coverage.status === 'partially_testable' ? `Partly. Available: ${coverage.available_fields.join(', ')}. Missing: ${coverage.missing_fields.join(', ')}.` : `Yes. All needed fields exist: ${coverage.available_fields.join(', ')}.`) : 'Unknown.'}</span></li>
+        <li><strong>Proposed rule</strong><span>{rule ? <><code>{ruleText(rule)}</code> — chosen from {report.candidates.length} candidate(s) tested on validation data.</> : report.status === 'covered_by_existing_rules' ? 'None needed: the existing rules already cover this technique.' : 'None.'}</span></li>
+        {delta && <li><strong>Result on unseen test data</strong><span>Adding it to the current rules catches <b>{formatDelta(delta.recall_change)}</b> more fraud ({delta.fraud_newly_detected >= 0 ? '+' : ''}{formatCount(delta.fraud_newly_detected)} cases) with a false-alarm change of <b>{formatDelta(delta.false_positive_rate_change, 2)}</b> ({delta.alert_change >= 0 ? '+' : ''}{formatCount(delta.alert_change)} alerts).</span></li>}
+        <li><strong>Your decision</strong><span>{report.status === 'pending_human_review' ? 'Approve, request changes, or reject below. Approval never switches the rule on.' : 'Nothing to approve for this run.'}</span></li>
+      </ol>
     </section>
   )
 }
@@ -204,6 +224,10 @@ function Report({ item, onReviewed }: { item: StoredInvestigation; onReviewed: (
         </div>
       </section>
 
+      <Summary report={report} />
+      <ReviewPanel item={item} onReviewed={onReviewed} />
+      <details className="audit-details">
+        <summary>Evidence and audit trail <small>pipeline · source quotes · findings · coverage · candidates · held-out test · agent trace · guardrails · limitations</small></summary>
       <Pipeline item={item} />
 
       <section className="report-grid two">
@@ -328,18 +352,22 @@ function Report({ item, onReviewed }: { item: StoredInvestigation; onReviewed: (
         </article>
       </section>
 
-      <section className="report-grid two">
-        <ReviewPanel item={item} onReviewed={onReviewed} />
         <article className="panel">
           <div className="panel-heading"><div><div className="section-kicker">LIMITATIONS</div><h2>What this result does not show</h2></div><span className="review-icon"><CircleAlert size={17} /></span></div>
           <BulletList items={report.limitations} />
         </article>
-      </section>
+      </details>
     </div>
   )
 }
 
 const EMPTY_CUSTOM: CustomAdvisory = { title: '', publisher: '', source_url: '', text: '' }
+
+const DATASET_OPTIONS = [
+  { id: 'payments-scenario-v3', label: 'Payments scenario v3 · 30k synthetic, card + account signals (default)' },
+  { id: 'sparkov-cards-v1', label: 'Sparkov cards v1 · 75k from an independent simulator' },
+  { id: 'card-scenario-v2', label: 'Card scenario v2 · 6k synthetic, card signals only' },
+]
 
 export default function InvestigationView() {
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null)
@@ -354,6 +382,7 @@ export default function InvestigationView() {
   const [showCustom, setShowCustom] = useState(false)
   const [custom, setCustom] = useState<CustomAdvisory>(EMPTY_CUSTOM)
   const [catalog, setCatalog] = useState<RuleCatalog | null>(null)
+  const [datasetId, setDatasetId] = useState(DATASET_OPTIONS[0].id)
 
   const refreshCatalog = useCallback(async () => {
     try {
@@ -409,7 +438,7 @@ export default function InvestigationView() {
     setRunning(label)
     setRunError('')
     try {
-      const result = await postJson<StoredInvestigation>('/api/v1/investigations', body, INVESTIGATION_TIMEOUT_MS)
+      const result = await postJson<StoredInvestigation>('/api/v1/investigations', { ...body, dataset_id: datasetId }, INVESTIGATION_TIMEOUT_MS)
       setCurrent(result)
       setShowCustom(false)
       await refreshHistory()
@@ -444,7 +473,12 @@ export default function InvestigationView() {
       {loadError && <section className="state-card error-card" role="alert"><div className="state-icon error"><ShieldAlert size={19} /></div><div className="state-copy"><strong>Intelligence sources are unavailable</strong><p>{loadError}</p></div><button className="primary-button" onClick={() => void load()}><RefreshCw size={15} /> Retry</button></section>}
 
       <section className="source-section" aria-label="Intelligence sources">
-        <div className="section-heading"><div><div className="section-kicker">STEP 1 · CHOOSE INTELLIGENCE</div><h2>Curated advisories</h2><p>Documents are treated as untrusted data. The agent has no web, file, shell, or code tools.</p></div><button className="secondary-button" onClick={() => setShowCustom((value) => !value)} aria-expanded={showCustom}><ClipboardPaste size={15} /> {showCustom ? 'Close' : 'Paste an advisory'}</button></div>
+        <div className="section-heading"><div><div className="section-kicker">STEP 1 · CHOOSE AN ADVISORY</div><h2>Fraud advisories</h2><p>Press Investigate on one. Gemini treats the text as untrusted data and has no web, file, or code tools.</p></div><button className="secondary-button" onClick={() => setShowCustom((value) => !value)} aria-expanded={showCustom}><ClipboardPaste size={15} /> {showCustom ? 'Close' : 'Paste an advisory'}</button></div>
+        <label className="dataset-picker">Test against data
+          <select value={datasetId} onChange={(event) => setDatasetId(event.target.value)}>
+            {DATASET_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+          </select>
+        </label>
         <div className="advisory-grid">
           {advisories.map((advisory) => (
             <article key={advisory.advisory_id} className="advisory-card">

@@ -74,3 +74,12 @@ export function CandidateConditions({ rule }: { rule: Rule }) {
     </div>
   )
 }
+
+const OPERATOR_SYMBOL: Record<string, string> = { greater_than: '>', greater_than_or_equal: '≥', less_than: '<', less_than_or_equal: '≤', equals: '=', not_equals: '≠' }
+
+/** A rule as one readable line, e.g. "transactions 1h ≥ 5 AND amount < 5". */
+export function ruleText(rule: Rule) {
+  return rule.conditions
+    .map((c) => `${c.field.replace(/_/g, ' ')} ${OPERATOR_SYMBOL[c.operator] ?? c.operator} ${c.value}`)
+    .join(rule.logical_operator === 'and' ? ' AND ' : ' OR ')
+}
