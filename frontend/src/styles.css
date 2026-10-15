@@ -644,3 +644,31 @@ details.catalog-panel[open] { padding: 0 0 12px; }
 .confirmation-approve svg { flex: none; color: var(--green); }
 .confirmation-reject, .confirmation-request_changes { color: #6b4a12; background: #fbf1df; border: 1px solid #efd7a8; }
 .review-confirmation .primary-button { text-decoration: none; }
+
+/* ---- Rule lab and customer reports --------------------------------------- */
+.lab-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; align-items: start; }
+.lab-grid > * { min-width: 0; }
+.lab-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lab-table th, .lab-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+.lab-table thead th { color: var(--muted); font-size: 11px; font-weight: 600; }
+.lab-table tbody th small { display: block; color: var(--muted); font-weight: 400; }
+.lab-pass { display: inline-flex; align-items: center; gap: 4px; color: #1d6b4c; font-weight: 700; }
+.lab-fail { display: inline-flex; align-items: center; gap: 4px; color: #9b2c2c; font-weight: 700; }
+.lab-miss { color: #8a5a0b; font-weight: 700; }
+.lab-verdict { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 14px; font-weight: 800; }
+.lab-verdict small { font-weight: 400; }
+.lab-verdict-flag { color: #9b2c2c; background: #fdecec; }
+.lab-verdict-allow { color: #1d6b4c; background: #e6f4ec; }
+.lab-builder .field-grid { margin: 12px 0; }
+.lab-save { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--border); }
+.lab-save label { display: grid; gap: 5px; color: #4f6157; font-size: 12px; font-weight: 600; }
+.lab-save input:not([type="radio"]) { padding: 8px 10px; border: 1px solid #dbe4de; border-radius: 6px; font: inherit; font-size: 13px; }
+.lab-save fieldset { display: grid; gap: 6px; margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+.lab-save .check-row { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.lab-actions { white-space: nowrap; }
+.activity-actions { margin-top: 6px; }
+.reported-tag { color: #9b2c2c; font-size: 12px; font-weight: 700; }
+.reports-line { margin: 10px 0; font-size: 13px; }
+.digest { margin-bottom: 10px; font-size: 12px; color: #4f6157; }
+.digest summary { cursor: pointer; color: var(--green); font-weight: 600; }
+@media (max-width: 900px) { .lab-grid { grid-template-columns: 1fr; } }

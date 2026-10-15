@@ -13,7 +13,7 @@ advisory → structured findings → coverage-gap check → candidate rules
 
 - **Gemini proposes.** A single Google ADK agent reads the advisory and works through a small set of bounded tools.
 - **Code measures.** The rule engine validates every rule and computes every metric. The model never reports numbers itself.
-- **Humans decide.** An approval is recorded, and the rule joins the reviewed catalog but is **never activated automatically**.
+- **Humans decide.** Gemini can only propose. A rule starts blocking payments only when a person approves it, and rejecting it switches it off. Every decision is audited.
 
 ## What it does
 
@@ -22,8 +22,10 @@ advisory → structured findings → coverage-gap check → candidate rules
 | **Card testing** advisory | The agent finds that the baseline (amount ≥ 1,500) misses small card-not-present bursts. It proposes up to three rules, checks them on the validation split, and the orchestrator tests the chosen rule **once** on the held-out split. Recorded live run: held-out recall **+5.4 pp**. |
 | **SIM swap** advisory (FBI IC3) | On `payments-scenario-v3`, the SIM-change, device, credential-reset and payee fields make the advisory testable. Recorded run: a rule on a recent SIM change adds **+10.8 pp** recall. On `card-scenario-v2`, which has none of these fields, the run ends with **not testable** and no rule is invented. |
 | Re-run after approval | Approved rules join the reference rule set and the agent reads earlier review decisions. If the behaviour is already covered, the result is **covered by existing rules**. This is governed learning; the model is never retrained. |
-| **Demo bank** | Pay with fictional cards or press *Card-testing attack* / *SIM-swap takeover*. The bank's live decision uses the active rule; the rule you approved shows in red where it *would* block the attack. |
-| Transaction monitor | A mock bank feed scores fresh synthetic transactions. Active rules make the decision. Approved rules run in **shadow mode**: they show what they *would* catch but never change the decision. |
+| **Demo bank** | Pay with fictional cards or press *Card-testing attack* / *SIM-swap takeover*. Once you approve a rule, the bank holds the attack's payments; before approval only the original rule (amount ≥ 1,500) decides. |
+| **Rule lab** | Pick a rule, build a test transaction next to it, generate matching or near-miss examples, label and save them, and run every saved case against any rule. |
+| **Customer fraud reports** | Press *Report fraud* in the Demo bank. When 3+ reported frauds slip past the active rules, the scheduled job asks Gemini to investigate what they share, and shows how many reported cases the proposed rule would catch. |
+| Transaction monitor | A mock bank feed scores fresh synthetic transactions with the original rule plus every approved rule, and counts the extra fraud the approved rules catch. |
 | Scheduled ingestion | A token-protected endpoint lets Cloud Scheduler investigate new or changed advisories automatically. |
 
 ## Architecture
@@ -61,7 +63,7 @@ One Cloud Run service built from the root `Dockerfile` serves both the API and t
 - **The agent's claims are re-checked in code.** Coverage is recomputed, and the selected rule must be one the agent actually evaluated. The status and headline are written by code, not by the model.
 - **Evaluation integrity.** The agent sees only training statistics and validation results. The held-out test runs once, triggered by the orchestrator. Prompts and data are never tuned on test results.
 - **Bounds.** At most 12 model calls, 120 seconds, 3 candidates and 3 conditions per rule, with an HTTP timeout on every model request.
-- **Governance.** Candidate rules are drafts. Approval never activates a rule. Every step is audited.
+- **Governance.** Candidate rules are drafts. Only a human approval activates a rule; reject or request-changes deactivates it. Every step is audited.
 
 ## Data
 
@@ -104,8 +106,8 @@ docker run -p 8080:8080 -e GOOGLE_API_KEY=... rulepilot-ai   # http://localhost:
 ## Checks
 
 ```bash
-cd backend && .venv/bin/python -m pytest -q          # 123 tests, no Gemini calls
-cd frontend && npm test && npx tsc -b && npm run build   # 18 tests
+cd backend && .venv/bin/python -m pytest -q          # 133 tests, no Gemini calls
+cd frontend && npm test && npx tsc -b && npm run build   # 21 tests
 cd backend && .venv/bin/python scripts/golden_eval.py    # live golden set (needs a key)
 cd backend && .venv/bin/python scripts/smoke_check.py http://127.0.0.1:8000
 ```

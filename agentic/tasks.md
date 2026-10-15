@@ -28,6 +28,8 @@ Status values: `done`, `in progress`, `todo`, `deferred`.
 | L8 | `payments-scenario-v3`: 30k rows, device/SIM/credential/payee fields, injected SIM-swap takeover | done |
 | L9 | `sparkov-cards-v1` from the Sparkov generator (MIT), provenance + SHA-256 | done |
 | U1 | Demo bank (`#bank`, `/bank/payments`), Start here guide, simplified report (summary first, audit folded) | done |
+| U2 | Approval activates rules; Rule lab (side-by-side rule + test data); customer fraud reports → scheduled investigation | done |
+| L10 | Fetch new fraud types from public feeds (FBI IC3 / FTC) in the scheduled job | todo |
 | L5 | Scheduled ingestion: token-protected `/ingestion/run` for Cloud Scheduler | done (local); create the Scheduler job at deploy |
 | L7 | Shadow scoring: mock bank feed, `/transactions/score` and `/transactions/simulate`, Transaction monitor UI | done |
 | L6 | Re-backtest approved rules on new data windows (drift) | deferred |

@@ -55,6 +55,7 @@ const SOURCE_LABEL: Record<string, string> = {
   regulatory_advisory: 'Regulatory advisory',
   industry_guidance: 'Industry guidance',
   analyst_supplied: 'Analyst supplied',
+  customer_reports: 'Customer fraud reports',
 }
 
 const DECISION_LABEL: Record<ReviewDecision, string> = {
@@ -215,6 +216,7 @@ function Summary({ report, reviews }: { report: InvestigationReport; reviews: St
         <li><strong>The advisory</strong><span>{findings ? `${findings.technique_name}: ${findings.summary}` : 'The agent did not finish reading the advisory.'} {report.evidence_quotes.length > 0 && <em>({verified} of {report.evidence_quotes.length} quotes checked word-for-word in the source)</em>}</span></li>
         <li><strong>Can our data test it?</strong><span>{coverage ? (coverage.status === 'not_testable' ? `No. The data has none of the fields it needs (${coverage.missing_fields.join(', ')}), so no rule was invented.` : coverage.status === 'partially_testable' ? `Partly. Available: ${coverage.available_fields.join(', ')}. Missing: ${coverage.missing_fields.join(', ')}.` : `Yes. All needed fields exist: ${coverage.available_fields.join(', ')}.`) : 'Unknown.'}</span></li>
         <li><strong>Proposed rule</strong><span>{rule ? <><code>{ruleText(rule)}</code> — chosen from {report.candidates.length} candidate(s) tested on validation data.</> : report.status === 'covered_by_existing_rules' ? 'None needed: the existing rules already cover this technique.' : 'None.'}</span></li>
+        {report.customer_report_check && <li><strong>Customer reports</strong><span>The proposed rule catches <b>{report.customer_report_check.caught_by_proposed_rule} of {report.customer_report_check.reported_cases}</b> payments customers reported as fraud that the active rules missed.</span></li>}
         {delta && <li><strong>Result on unseen test data</strong><span>Adding it to the current rules catches <b>{formatDelta(delta.recall_change)}</b> more fraud ({delta.fraud_newly_detected >= 0 ? '+' : ''}{formatCount(delta.fraud_newly_detected)} cases) with a false-alarm change of <b>{formatDelta(delta.false_positive_rate_change, 2)}</b> ({delta.alert_change >= 0 ? '+' : ''}{formatCount(delta.alert_change)} alerts).</span></li>}
         <li><strong>Your decision</strong><span>{latest ? `${DECISION_LABEL[latest.decision]} by ${latest.reviewer}.${latest.decision === 'approve' ? ' The rule is now active in the Demo bank.' : ''}` : report.status === 'pending_human_review' ? 'Approve, request changes, or reject below. Approving switches the rule on in the Demo bank.' : 'Nothing to approve for this run.'}</span></li>
       </ol>

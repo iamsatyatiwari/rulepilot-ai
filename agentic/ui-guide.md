@@ -6,7 +6,8 @@ The dashboard has five views, selected in the left sidebar:
 | --- | --- | --- |
 | **Start here** (default) | `#guide` | Four-step guided demo with buttons to each page |
 | **Investigations** | `#investigations` | Run the Gemini agent on an advisory, read the plain-language summary, approve or reject |
-| **Demo bank** | `#bank` | Pay with fictional cards or run attack scenarios; see the active decision and what approved rules would do |
+| **Demo bank** | `#bank` | Pay with fictional cards or run attack scenarios; the original rule plus every approved rule decide. Report fraud; investigate customer reports |
+| **Rule lab** | `#lab` | A rule and a test transaction side by side; generate matching or near-miss examples; save labelled test cases and run them against any rule |
 | **Transaction monitor** (Advanced) | `#monitor` | Batch mock bank feed scored by the engine; approved rules run in shadow mode |
 | **Rule engine** (Advanced) | `#engine` | Baseline threshold discovery on the original v1 fixture (M2B) |
 
@@ -35,35 +36,36 @@ Source files: `frontend/src/App.tsx` (shell), `GuideView.tsx`, `InvestigationVie
 3. For the full audit, open **Evidence and audit trail**. It holds the pipeline, source and quotes, findings, coverage, the candidate table, the held-out test, the agent trace, guardrails, and limitations.
 
 **Step 3: approve.**
-1. In **Human review**, type your name and a reason, for example "Shadow test first; keep FPR under 1%".
-2. Press **Approve for further testing**.
-3. The banner changes to *Approved for further testing*. The **Reviewed rule catalog** now lists the rule as *approved (shadow)*. It is **not** switched on.
+1. In **Human review**, type your name and a reason, then press **Approve for further testing**.
+2. A green box confirms *Approved by …* and says the rule is now **active**. **Test it in the Demo bank** takes you there. The form disappears; **Record a different decision** brings it back (Reject or Request changes switches the rule off).
 
 **Step 4: see it work in the Demo bank.**
-1. Open **Demo bank**. The top panel shows the active rule (amount ≥ 1,500) and your approved rule in shadow mode.
-2. Press **Card-testing attack**. Eight tiny gift-card payments run on Ben's card, half with a wrong CVV.
-   - Watch **What the bank decided**: the bank approves the tiny payments, and wrong-CVV ones are *Declined by issuer*.
-   - From about the sixth attempt, a red line reads **RulePilot rule … would flag this (shadow mode)**.
-3. Press **Why?** on any payment to see the features the engine used: payments in the last hour, declines, online or in store, new payee, new device, SIM change, and credential resets.
-4. Press **Normal day**. Asha's groceries, fuel, and book are all approved, and nothing is flagged.
-5. Make your own payment: choose a card, a merchant, and an amount, then press **Pay**.
-   - *MegaTech Electronics* at 1,899 is **Held for review** by the active rule.
-   - Tick *Wrong security code* to see an issuer decline.
+1. Open **Demo bank**. The top panel lists the original rule and every approved rule, each with *try the …* naming the scenario it reacts to.
+2. Press the matching scenario:
+   - A card-testing rule: **Card-testing attack**. From about the sixth tiny payment the bank shows **Held for review**, with a red line *Blocked by your approved RulePilot rule …*.
+   - A SIM-swap rule: **SIM-swap takeover**. The 1,240 transfer is **Held for review**, although the original rule (amount ≥ 1,500) would have approved it.
+   - If you run an attack your rules do not cover, a note tells you which scenario they do cover.
+3. Press **Why?** on any payment to see the features the engine used.
+4. **Normal day** should be all *Approved*. *MegaTech Electronics* at 1,899 is held by the original rule. Tick *Wrong security code* to see an issuer decline.
 
-**Step 5: see the learning loop.**
-1. Back in **Investigations**, press **Investigate** on *Preventing Card Testing* again.
-2. The banner now says **Covered by existing rules**, compared against 2 reviewed rules and 1 prior review. The agent read your approval and proposes nothing new.
+**Step 5: report fraud (continuous learning).**
+1. On a payment the customer did not make, press **Report fraud**. It is stored as a customer-reported fraud case (it also appears in the Rule lab).
+2. The **Customer fraud reports** panel shows how many reports the active rules missed. Open **What Gemini will read** to see the summary that code writes from those payments (no names or card numbers).
+3. With 3 or more missed reports, press **Investigate reports now** (the scheduled job does the same every few hours). After 20–90 s a note shows the result and how many reported cases the proposed rule catches; review and approve it in **Investigations**.
 
-**Step 6: a second technique, and honesty.**
-1. Investigate the *SIM Swap* advisory on *Payments scenario v3*. It is testable and proposes a rule such as `days since sim change ≤ 1`. Approve it.
-2. In the **Demo bank**, press **SIM-swap takeover**. Chen's transfer of 1,240 is below the old 1,500 limit, so the bank approves it, but the approved SIM-swap rule would flag it.
-3. Switch **Test against data** to *Card scenario v2* or *Sparkov cards v1*, and investigate *SIM Swap* again. The banner says **Not testable with available data**, and no rule is invented.
+**Step 6: build your own test data in the Rule lab.**
+1. Open **Rule lab** and pick a rule. The left panel shows each condition, what the rule needs, the value in your test transaction, and ✓/✗, plus whether the rule FLAGS or ALLOWS it.
+2. Press **Example that matches** or **Near miss** (one condition just fails), or type values yourself.
+3. Name it, choose *Fraud* or *Legitimate*, and press **Save as test case**.
+4. The **Test cases** table runs every saved case (yours and customer reports) against the selected rule: pass/fail, fraud caught, and false alarms. Switch rules to compare them; **Load** puts a case back into the builder.
 
-**Step 7 (optional): batch view.** Under **Advanced → Transaction monitor**, press **Stream 20 transactions**. Rows marked *Caught only by approved rule* are fraud the active rule allowed.
+**Step 7: the learning loop and honesty.**
+1. Investigate the same advisory again: **Covered by existing rules**.
+2. Switch **Test against data** to *Sparkov cards v1* and investigate *SIM Swap*: **Not testable with available data**; no rule is invented.
 
-**Resetting:**
-- **Reset demo** in the bank clears card activity, which is kept only in your browser.
-- To remove an approved rule, record **Reject** on its investigation.
+**Step 8 (optional): batch view.** **Advanced → Transaction monitor → Stream 20 transactions**: rows *Caught by approved rule* are fraud only the approved rules stopped.
+
+**Resetting:** **Reset demo** clears bank activity (kept in your browser). Reject an approval to switch its rule off. Delete test cases in the Rule lab.
 
 ---
 

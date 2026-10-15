@@ -39,19 +39,24 @@ function result(body: { history: unknown[]; cvv_correct: boolean }) {
   }
 }
 
-const jsonResponse = (payload: unknown) => ({ ok: true, status: 200, json: async () => payload }) as Response
+const jsonResponse = (payload: unknown, status = 200) => ({ ok: true, status, json: async () => payload }) as Response
 
 describe('Demo bank', () => {
   let fetchMock: ReturnType<typeof vi.fn>
+  let reportCount = 0
 
   beforeEach(() => {
     window.location.hash = '#bank'
+    reportCount = 0
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.endsWith('/health')) return jsonResponse({ status: 'ok' })
       if (url.endsWith('/api/v1/bank/catalog')) return jsonResponse(catalog)
       if (url.endsWith('/api/v1/rule-catalog')) return jsonResponse({ active: [], approved_not_active: [{ rule: approvedRule, approved_by: 'analyst', approved_at: '2026-10-15T10:00:00Z', review_comment: 'ok', investigation_id: 'inv-1', advisory_title: 'Preventing Card Testing', technique: 'Card testing', activation: 'active' }] })
       if (url.endsWith('/api/v1/bank/payments')) return jsonResponse(result(JSON.parse(String(init?.body))))
+      if (url.endsWith('/api/v1/bank/reports')) { reportCount += 1; return jsonResponse({ case_id: `case-${reportCount}` }, 201) }
+      if (url.endsWith('/api/v1/customer-reports/summary')) return jsonResponse({ reports: reportCount, missed_by_active_rules: reportCount, ready_to_investigate: reportCount >= 3, min_missed_reports: 3, digest_advisory_id: null, digest_preview: reportCount >= 3 ? 'Customers reported 3 payments as fraud.' : null })
+      if (url.endsWith('/api/v1/customer-reports/investigate')) return jsonResponse({ reviews: [], report: { headline: 'Adding AGT-x-1 changed recall by +10.0 pp.', customer_report_check: { reported_cases: 3, caught_by_proposed_rule: 3 } } })
       throw new Error(`unexpected ${url}`)
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -94,6 +99,24 @@ describe('Demo bank', () => {
     expect(await screen.findByText(/try the/)).toHaveTextContent('Card-testing attack')
     fireEvent.click(await screen.findByRole('button', { name: /sim-swap takeover/i }))
     expect(await screen.findByText(/None of your approved rules blocked this attack/)).toHaveTextContent('AGT-a48565d1-1 reacts to the Card-testing attack')
+  })
+
+  it('reports payments as fraud and investigates the missed reports', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /sim-swap takeover/i }))
+    const activity = screen.getByRole('region', { name: 'Card activity' })
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.click(await within(activity).findByRole('button', { name: 'Report fraud' }))
+      await within(activity).findAllByText('Reported as fraud')
+      if (i < 2) fireEvent.click(screen.getByRole('button', { name: /sim-swap takeover/i }))
+      if (i < 2) await waitFor(() => expect(within(activity).getAllByRole('button', { name: 'Report fraud' })).toHaveLength(1))
+    }
+    const panel = screen.getByRole('region', { name: 'Customer fraud reports' })
+    await within(panel).findByText(/ready to investigate/)
+    fireEvent.click(within(panel).getByRole('button', { name: /investigate reports now/i }))
+    expect(await within(panel).findByText(/catches 3 of 3 reported cases/)).toBeInTheDocument()
+    const report = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/api/v1/bank/reports'))
+    expect(JSON.parse(String(report?.[1]?.body)).payment).toMatchObject({ card_id: 'card-chen', merchant_id: 'm-transfer' })
   })
 
   it('formats local timestamps with the UTC offset', () => {

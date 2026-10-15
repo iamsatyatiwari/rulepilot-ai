@@ -219,10 +219,28 @@ SPARKOV DATA, DEMO BANK, SIMPLER UI (2026-10-15)
     sparkov-cards-v1 passed all guardrails.
 
 
+ACTIVATION, RULE LAB, CUSTOMER REPORTS (2026-10-16)
+---------------------------------------------------
+  * Team decision: approval activates a rule; reject or request-changes
+    deactivates it (review.activation, audit events). Guardrails 13/15
+    updated. Bank, monitor, and /transactions/score decide with the
+    baseline plus approved rules; API fields kept, new ones added.
+  * Rule lab (#lab, /api/v1/lab/*): side-by-side condition table, generated
+    matching / near-miss examples, labelled test cases persisted with the
+    governance backend, run summaries per rule.
+  * Customer fraud reports (bank "Report fraud", POST /bank/reports): stored
+    as test cases with server-derived features. 3+ reports missed by the
+    active rules -> code-written digest (no personal data) investigated by
+    the agent via the scheduled job or POST /customer-reports/investigate;
+    customer_report_check shows how many reported cases the rule catches.
+  * Review panel shows a confirmation after a decision (fixes double
+    approvals); bank names the scenario each approved rule reacts to.
+
+
 VERIFICATION RESULTS (2026-10-14)
 ---------------------------------
-  * Backend: 123 pytest tests passed (112 before 15 Oct afternoon) (96 before v3, 82 at M4, 36 at M2B).
-  * Frontend: 18 Vitest tests passed (14 before) (10 at M4, 5 at M2B); tsc and Vite
+  * Backend: 133 pytest tests passed (112 before 15 Oct afternoon) (96 before v3, 82 at M4, 36 at M2B).
+  * Frontend: 21 Vitest tests passed (14 before) (10 at M4, 5 at M2B); tsc and Vite
     build passed.
   * Production-mode run (FastAPI serving the built dashboard) and the
     Firestore emulator: backend/scripts/smoke_check.py passes; state survives

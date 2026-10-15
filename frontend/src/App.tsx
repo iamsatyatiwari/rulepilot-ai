@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Activity, BookOpen, Check, CreditCard, FileSearch, GitBranch, LayoutDashboard, Menu, ShieldCheck, X } from 'lucide-react'
+import { Activity, BookOpen, Check, CreditCard, FileSearch, FlaskConical, GitBranch, LayoutDashboard, Menu, ShieldCheck, X } from 'lucide-react'
 import { apiRequest, type ApiHealth } from './api'
 import BankView from './BankView'
 import GuideView from './GuideView'
 import InvestigationView from './InvestigationView'
+import LabView from './LabView'
 import MonitorView from './MonitorView'
 import RuleEngineView from './RuleEngineView'
 
-type View = 'guide' | 'investigations' | 'bank' | 'monitor' | 'engine'
+type View = 'guide' | 'investigations' | 'bank' | 'lab' | 'monitor' | 'engine'
 
-const VIEWS: View[] = ['guide', 'investigations', 'bank', 'monitor', 'engine']
-const VIEW_TITLE: Record<View, string> = { guide: 'Start here', investigations: 'Investigations', bank: 'Demo bank', monitor: 'Transaction monitor', engine: 'Rule engine' }
+const VIEWS: View[] = ['guide', 'investigations', 'bank', 'lab', 'monitor', 'engine']
+const VIEW_TITLE: Record<View, string> = { guide: 'Start here', investigations: 'Investigations', bank: 'Demo bank', lab: 'Rule lab', monitor: 'Transaction monitor', engine: 'Rule engine' }
 type HealthState = 'checking' | 'online' | 'offline'
 
 function viewFromHash(): View {
@@ -56,6 +57,7 @@ function App() {
             ['guide', BookOpen, 'Start here', 'GUIDE'],
             ['investigations', FileSearch, 'Investigations', 'GEMINI'],
             ['bank', CreditCard, 'Demo bank', 'TRY IT'],
+            ['lab', FlaskConical, 'Rule lab', 'TEST'],
           ] as const).map(([target, Icon, label, tag]) => (
             <button key={target} className={`nav-item ${view === target ? 'active' : ''}`} onClick={() => navigate(target)} aria-current={view === target ? 'page' : undefined}><Icon size={17} /><span>{label}</span><span className="nav-soon">{tag}</span></button>
           ))}
@@ -84,6 +86,7 @@ function App() {
           {view === 'guide' && <GuideView onNavigate={navigate} />}
           {view === 'investigations' && <InvestigationView />}
           {view === 'bank' && <BankView />}
+          {view === 'lab' && <LabView />}
           {view === 'monitor' && <MonitorView />}
           {view === 'engine' && <RuleEngineView />}
           <footer className="page-footer"><span>RULEPILOT AI <i>·</i> CONTINUOUS FINANCIAL RULE INTELLIGENCE</span><span>Synthetic data only <i>·</i> Not a production fraud system</span></footer>

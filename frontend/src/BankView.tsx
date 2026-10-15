@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { CreditCard, LoaderCircle, RotateCcw, ShieldAlert, ShieldCheck, Smartphone, Zap } from 'lucide-react'
 import {
+  INVESTIGATION_TIMEOUT_MS,
   apiRequest,
   postJson,
   type BankCatalog,
@@ -8,13 +9,15 @@ import {
   type DemoCard,
   type PaymentRequest,
   type PaymentResult,
+  type ReportsSummary,
+  type StoredInvestigation,
   type Rule,
   type RuleCatalog,
   type SecurityEvent,
 } from './api'
 import { numberFormat, ruleText, safeMessage } from './components'
 
-type ActivityItem = { id: number; cardId: string; merchant: string; amount: number; at: string; result: PaymentResult }
+type ActivityItem = { id: number; cardId: string; merchant: string; amount: number; at: string; result: PaymentResult; request: PaymentRequest; reported?: boolean }
 type CardState = { history: BankHistoryItem[]; events: SecurityEvent[] }
 
 const OUTCOME_LABEL: Record<PaymentResult['outcome'], string> = {
@@ -72,6 +75,8 @@ export default function BankView() {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [reports, setReports] = useState<ReportsSummary | null>(null)
+  const [reportRun, setReportRun] = useState<StoredInvestigation | null>(null)
   const shadowCount = useRef(0)
 
   const loadRules = useCallback(async () => {
@@ -81,6 +86,18 @@ export default function BankView() {
       setRules(null)
     }
   }, [])
+
+  const loadReports = useCallback(async () => {
+    try {
+      setReports(await apiRequest<ReportsSummary>('/api/v1/customer-reports/summary'))
+    } catch {
+      setReports(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadReports()
+  }, [loadReports])
 
   useEffect(() => {
     apiRequest<BankCatalog>('/api/v1/bank/catalog').then((value) => setCatalog(Array.isArray(value?.cards) ? value : null)).catch((loadError) => setError(safeMessage(loadError)))
@@ -100,7 +117,8 @@ export default function BankView() {
     const cardState = current[request.card_id] ?? { history: [], events: [] }
     const events = [...cardState.events, ...extraEvents]
     const at = request.at ?? localIso(new Date())
-    const result = await postJson<PaymentResult>('/api/v1/bank/payments', { ...request, at, history: cardState.history, security_events: events })
+    const fullRequest: PaymentRequest = { ...request, at, history: cardState.history, security_events: events }
+    const result = await postJson<PaymentResult>('/api/v1/bank/payments', fullRequest)
     const declined = result.outcome === 'declined_by_issuer'
     const next = {
       ...current,
@@ -108,7 +126,7 @@ export default function BankView() {
     }
     setState(next)
     if (result.score.approved_flagged_by?.length) shadowCount.current += 1
-    setActivity((items) => [{ id: Date.now() + Math.random(), cardId: request.card_id, merchant: merchantName(request.merchant_id), amount: request.amount, at, result }, ...items].slice(0, 60))
+    setActivity((items) => [{ id: Date.now() + Math.random(), cardId: request.card_id, merchant: merchantName(request.merchant_id), amount: request.amount, at, result, request: fullRequest }, ...items].slice(0, 60))
     return next
   }
 
@@ -173,6 +191,18 @@ export default function BankView() {
       current = await pay(current, { card_id: 'card-asha', merchant_id: merchant, amount: value, cvv_correct: true, new_device: false })
       await sleep(250)
     }
+  })
+
+  const reportFraud = (item: ActivityItem) => run(`report-${item.id}`, async () => {
+    await postJson('/api/v1/bank/reports', { payment: item.request, note: 'Reported by the customer in the demo bank.' })
+    setActivity((items) => items.map((existing) => existing.id === item.id ? { ...existing, reported: true } : existing))
+    await loadReports()
+  })
+
+  const investigateReports = () => run('investigate-reports', async () => {
+    const stored = await postJson<StoredInvestigation>('/api/v1/customer-reports/investigate', {}, INVESTIGATION_TIMEOUT_MS)
+    setReportRun(stored)
+    await loadReports()
   })
 
   const reset = () => {
@@ -245,6 +275,21 @@ export default function BankView() {
               </button>
             </div>
           </section>
+
+          <section className="panel" aria-label="Customer fraud reports">
+            <div className="panel-heading"><div><div className="section-kicker">CONTINUOUS LEARNING · CUSTOMER REPORTS</div><h2>Customer fraud reports</h2><p>Press “Report fraud” on a payment the customer did not make. When {reports?.min_missed_reports ?? 3} or more reported frauds get past the active rules, the scheduled job (or the button below) asks Gemini to investigate what they have in common.</p></div></div>
+            {reports && <p className="reports-line"><b>{reports.reports}</b> report(s) · <b>{reports.missed_by_active_rules}</b> missed by the active rules{reports.ready_to_investigate ? ' · ready to investigate' : ''}</p>}
+            {reports?.digest_preview && <details className="digest"><summary>What Gemini will read</summary><p>{reports.digest_preview}</p></details>}
+            <button className="primary-button" onClick={() => void investigateReports()} disabled={busy !== null || !reports?.ready_to_investigate}>{busy === 'investigate-reports' ? <LoaderCircle size={15} className="spin" /> : <Zap size={15} />} Investigate reports now</button>
+            {busy === 'investigate-reports' && <p className="muted-text">Gemini is investigating the reports. This takes 20–90 seconds.</p>}
+            {reportRun && (
+              <div className="inline-note" role="status">
+                <ShieldCheck size={14} /> {reportRun.report.headline}
+                {reportRun.report.customer_report_check && ` The proposed rule catches ${reportRun.report.customer_report_check.caught_by_proposed_rule} of ${reportRun.report.customer_report_check.reported_cases} reported cases.`}
+                {' '}<a href="#investigations">Review it in Investigations</a>
+              </div>
+            )}
+          </section>
         </div>
 
         <section className="panel bank-activity" aria-label="Card activity">
@@ -264,6 +309,11 @@ export default function BankView() {
                       <small>•••• {catalog?.cards.find((c) => c.card_id === item.cardId)?.last4} · {new Date(item.at).toLocaleTimeString()}</small>
                     </div>
                     {blockedBy.length > 0 && <div className="shadow-flag"><ShieldAlert size={14} /> Blocked by your approved RulePilot rule {blockedBy.join(', ')}; the original rule alone would have approved it</div>}
+                    <div className="activity-actions">
+                      {item.reported
+                        ? <span className="reported-tag">Reported as fraud</span>
+                        : <button className="text-button" onClick={() => void reportFraud(item)} disabled={busy !== null}>Report fraud</button>}
+                    </div>
                     <details>
                       <summary>Why?</summary>
                       <p>{item.result.explanation} {item.result.shadow_summary}</p>

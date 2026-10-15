@@ -13,7 +13,7 @@ advisory → structured findings → coverage-gap check → candidate rules
 
 - **Gemini proposes and coordinates.** One Google ADK agent reads the advisory and uses bounded tools.
 - **The deterministic engine measures.** Python code validates rules and computes all metrics.
-- **Humans decide.** Approval is recorded and never activates a rule.
+- **Humans decide.** Only a human approval activates a rule; reject or request-changes switches it off. Every step is audited.
 
 First vertical slice: payment-card fraud. Account takeover, scams, and AML are future extensions.
 
@@ -43,8 +43,9 @@ First vertical slice: payment-card fraud. Account takeover, scams, and AML are f
 | `payments-scenario-v3` dataset (30k rows, 12 fields) and golden-set evaluation (L4) | Done locally; live golden run passes on v3 |
 | `sparkov-cards-v1` (75k rows from the independent MIT-licensed Sparkov simulator) | Done locally |
 | Demo bank, Start here guide, simplified investigations UI | Done locally |
+| Approval activates rules (16 Oct team decision); Rule lab; customer fraud reports feeding the scheduled job | Done locally |
 
-Latest verification: 123 backend tests, 18 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
+Latest verification: 133 backend tests, 21 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
 
 ## Key decisions (do not reverse without a demonstrated need)
 
