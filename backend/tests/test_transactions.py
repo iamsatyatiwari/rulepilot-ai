@@ -108,8 +108,9 @@ def test_score_endpoint_ignores_supplied_label_and_rejects_bad_input(client):
     approve_card_testing_rule(client)
     labelled = dict(CARD_TESTING_TXN, ground_truth_fraud=False)
     body = client.post("/api/v1/transactions/score", json={"transaction": labelled}).json()
-    assert body["decision"] == "allow" and body["caught_only_in_shadow"] is True
-    assert "not active" in body["note"]
+    # Approval activates the rule: it now decides, and the label supplied by the caller is ignored.
+    assert body["decision"] == "flag" and body["caught_only_by_approved"] is True
+    assert body["approved_flagged_by"] == body["decided_by"]
     for payload in (
         {"transaction": dict(CARD_TESTING_TXN, unknown_field=1)},
         {"transaction": dict(CARD_TESTING_TXN, amount="1e9")},
@@ -118,25 +119,23 @@ def test_score_endpoint_ignores_supplied_label_and_rejects_bad_input(client):
         assert client.post("/api/v1/transactions/score", json=payload).status_code == 422
 
 
-def test_simulate_summary_matches_items_and_shows_shadow_catches(client):
+def test_simulate_summary_counts_fraud_caught_by_approved_rules(client):
     before = client.post("/api/v1/transactions/simulate", json={"count": 40, "seed": 3}).json()
-    assert before["summary"]["shadow_rules"] == 0
-    assert before["summary"]["fraud_caught_only_in_shadow"] == 0
+    assert before["summary"]["approved_rules"] == 0
+    assert before["summary"]["fraud_caught_by_approved_rules"] == 0
 
     approve_card_testing_rule(client)
     body = client.post("/api/v1/transactions/simulate", json={"count": 40, "seed": 3}).json()
     items, summary = body["items"], body["summary"]
     assert summary["transactions"] == len(items) == 40
     assert summary["synthetic_fraud"] == sum(item["synthetic_fraud"] for item in items)
-    assert summary["fraud_caught_only_in_shadow"] > 0
-    assert (
-        summary["fraud_caught_by_active_rules"]
-        + summary["fraud_caught_only_in_shadow"]
-        + summary["fraud_missed_by_all_rules"]
-        == summary["synthetic_fraud"]
-    )
-    # Approval did not change any decision: active-rule results are identical.
-    assert [i["score"]["decision"] for i in items] == [i["score"]["decision"] for i in before["items"]]
+    assert summary["approved_rules"] == 1 and summary["fraud_caught_by_approved_rules"] > 0
+    assert summary["fraud_caught_only_in_shadow"] == 0
+    assert summary["fraud_caught_by_active_rules"] + summary["fraud_missed_by_all_rules"] == summary["synthetic_fraud"]
+    # Approval activated the rule: payments it catches are now flagged, others are unchanged.
+    after = [i["score"]["decision"] for i in items]
+    assert after != [i["score"]["decision"] for i in before["items"]]
+    assert all(i["score"]["decision"] == "flag" for i in items if i["score"]["caught_only_by_approved"])
     assert all(item["score"]["transaction_id"] == item["transaction"]["transaction_id"] for item in items)
     assert "synthetic" in body["disclaimer"]
 

@@ -177,7 +177,7 @@ def get_investigation(investigation_id: str, store: GovernanceStore = Depends(ge
 def review_investigation(
     investigation_id: str, request: ReviewRequest, store: GovernanceStore = Depends(get_store)
 ) -> ReviewRecord:
-    """Record a human decision. Approval never activates the rule."""
+    """Record a human decision. Approval activates the rule; reject or request-changes deactivates it."""
     try:
         return store.review(investigation_id, request)
     except KeyError as error:
@@ -188,13 +188,15 @@ def review_investigation(
 
 class RuleCatalogResponse(BaseModel):
     active: list[Rule]
-    approved_not_active: list[CatalogEntry]
+    approved_not_active: list[CatalogEntry]  # kept for compatibility; same entries as approved_active
+    approved_active: list[CatalogEntry] = []
 
 
 @router.get("/rule-catalog", response_model=RuleCatalogResponse, tags=["governance"])
 def rule_catalog(store: GovernanceStore = Depends(get_store)) -> RuleCatalogResponse:
     """The reviewed rule set: the active baseline plus human-approved, inactive rules."""
-    return RuleCatalogResponse(active=[BASELINE_RULE], approved_not_active=store.catalog())
+    entries = store.catalog()
+    return RuleCatalogResponse(active=[BASELINE_RULE], approved_not_active=entries, approved_active=entries)
 
 
 @router.get("/audit", response_model=list[AuditEvent], tags=["governance"])

@@ -135,13 +135,13 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
 
   return (
     <article className="panel" id="review">
-      <div className="panel-heading"><div><div className="section-kicker">GOVERNANCE</div><h2>Human review</h2><p>Decisions are recorded with reviewer, rule version, and time. Approval never activates a rule.</p></div><span className="review-icon"><UserCheck size={18} /></span></div>
+      <div className="panel-heading"><div><div className="section-kicker">GOVERNANCE</div><h2>Human review</h2><p>Decisions are recorded with reviewer, rule version, and time. Approving a rule activates it in the Demo bank and Transaction monitor; rejecting it switches it off again.</p></div><span className="review-icon"><UserCheck size={18} /></span></div>
       {reviews.length > 0 && (
         <ul className="review-history" aria-label="Review history">
           {reviews.map((review) => (
             <li key={review.review_id}>
               <span className={`decision-badge decision-${review.decision}`}>{DECISION_LABEL[review.decision]}</span>
-              <div><strong>{review.reviewer}</strong> · <span>{new Date(review.decided_at).toLocaleString()}</span><p>{review.comment}</p><small><Lock size={11} /> {review.rule_id} v{review.rule_version} · activation: not activated</small></div>
+              <div><strong>{review.reviewer}</strong> · <span>{new Date(review.decided_at).toLocaleString()}</span><p>{review.comment}</p><small><Lock size={11} /> {review.rule_id} v{review.rule_version} · activation: {review.activation === 'active' ? 'active' : 'not activated'}</small></div>
             </li>
           ))}
         </ul>
@@ -152,7 +152,7 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
           <div>
             <strong>{latest.decision === 'approve' ? `Approved by ${latest.reviewer}` : `${DECISION_LABEL[latest.decision]} by ${latest.reviewer}`} · {new Date(latest.decided_at).toLocaleString()}</strong>
             {latest.decision === 'approve'
-              ? <p>Rule <b>{latest.rule_id}</b> is now in the reviewed catalog and runs in <b>shadow mode</b>: the Demo bank and Transaction monitor show every payment it would block. It does not change real decisions until a separate activation decision.</p>
+              ? <p>Rule <b>{latest.rule_id}</b> is now <b>active</b>: the Demo bank and Transaction monitor use it, together with the original rule, to hold suspicious payments. Record <i>Reject</i> or <i>Request changes</i> to switch it off.</p>
               : <p>Rule <b>{latest.rule_id}</b> is not in the reviewed catalog and is not used in the bank.</p>}
             <div className="review-actions">
               {latest.decision === 'approve' && <a className="primary-button" href="#bank">Test it in the Demo bank <ArrowRight size={14} /></a>}
@@ -188,14 +188,14 @@ function RuleCatalogPanel({ catalog }: { catalog: RuleCatalog | null }) {
   return (
     <section aria-label="Reviewed rule catalog">
     <details className="panel catalog-panel">
-      <summary className="catalog-summary">Reviewed rule catalog <small>{catalog.active.length} active · {catalog.approved_not_active.length} approved (shadow)</small></summary>
-      <div className="panel-heading"><div><div className="section-kicker">LEARNING LOOP · REVIEWED RULE CATALOG</div><h2>Rules every new investigation is compared against</h2><p>Approved candidates join the reviewed rule set and inform future investigations. Approval is not activation: approved rules stay inactive until a separate deployment decision.</p></div><span className="review-icon"><GitBranch size={17} /></span></div>
+      <summary className="catalog-summary">Reviewed rule catalog <small>{catalog.active.length} active · {catalog.approved_not_active.length} approved and active</small></summary>
+      <div className="panel-heading"><div><div className="section-kicker">LEARNING LOOP · REVIEWED RULE CATALOG</div><h2>Rules every new investigation is compared against</h2><p>Approved candidates join the rule set: they are active in the Demo bank and every new investigation is compared against them. Reject or request changes to remove one.</p></div><span className="review-icon"><GitBranch size={17} /></span></div>
       <ul className="catalog-list">
         {catalog.active.map((rule) => (
           <li key={rule.rule_id}><span className="catalog-state state-active">Active baseline</span><div><strong>{rule.rule_id}</strong> · {rule.name} <small>v{rule.version}</small><CandidateConditions rule={rule} /></div></li>
         ))}
         {catalog.approved_not_active.map((entry) => (
-          <li key={entry.rule.rule_id}><span className="catalog-state state-approved">Approved · not active</span><div><strong>{entry.rule.rule_id}</strong> · {entry.rule.name} <small>v{entry.rule.version}</small><CandidateConditions rule={entry.rule} /><p className="catalog-provenance">Approved by {entry.approved_by} on {new Date(entry.approved_at).toLocaleString()} from “{entry.advisory_title}”. “{entry.review_comment}”</p></div></li>
+          <li key={entry.rule.rule_id}><span className="catalog-state state-approved">Approved · active</span><div><strong>{entry.rule.rule_id}</strong> · {entry.rule.name} <small>v{entry.rule.version}</small><CandidateConditions rule={entry.rule} /><p className="catalog-provenance">Approved by {entry.approved_by} on {new Date(entry.approved_at).toLocaleString()} from “{entry.advisory_title}”. “{entry.review_comment}”</p></div></li>
         ))}
       </ul>
       {catalog.approved_not_active.length === 0 && <p className="muted-text">No candidates have been approved yet. Approve one in Human review and re-run an investigation to see it used.</p>}
@@ -216,7 +216,7 @@ function Summary({ report, reviews }: { report: InvestigationReport; reviews: St
         <li><strong>Can our data test it?</strong><span>{coverage ? (coverage.status === 'not_testable' ? `No. The data has none of the fields it needs (${coverage.missing_fields.join(', ')}), so no rule was invented.` : coverage.status === 'partially_testable' ? `Partly. Available: ${coverage.available_fields.join(', ')}. Missing: ${coverage.missing_fields.join(', ')}.` : `Yes. All needed fields exist: ${coverage.available_fields.join(', ')}.`) : 'Unknown.'}</span></li>
         <li><strong>Proposed rule</strong><span>{rule ? <><code>{ruleText(rule)}</code> — chosen from {report.candidates.length} candidate(s) tested on validation data.</> : report.status === 'covered_by_existing_rules' ? 'None needed: the existing rules already cover this technique.' : 'None.'}</span></li>
         {delta && <li><strong>Result on unseen test data</strong><span>Adding it to the current rules catches <b>{formatDelta(delta.recall_change)}</b> more fraud ({delta.fraud_newly_detected >= 0 ? '+' : ''}{formatCount(delta.fraud_newly_detected)} cases) with a false-alarm change of <b>{formatDelta(delta.false_positive_rate_change, 2)}</b> ({delta.alert_change >= 0 ? '+' : ''}{formatCount(delta.alert_change)} alerts).</span></li>}
-        <li><strong>Your decision</strong><span>{latest ? `${DECISION_LABEL[latest.decision]} by ${latest.reviewer}.${latest.decision === 'approve' ? ' The rule now runs in shadow mode in the Demo bank.' : ''}` : report.status === 'pending_human_review' ? 'Approve, request changes, or reject below. Approval never switches the rule on.' : 'Nothing to approve for this run.'}</span></li>
+        <li><strong>Your decision</strong><span>{latest ? `${DECISION_LABEL[latest.decision]} by ${latest.reviewer}.${latest.decision === 'approve' ? ' The rule is now active in the Demo bank.' : ''}` : report.status === 'pending_human_review' ? 'Approve, request changes, or reject below. Approving switches the rule on in the Demo bank.' : 'Nothing to approve for this run.'}</span></li>
       </ol>
     </section>
   )

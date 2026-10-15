@@ -192,7 +192,7 @@ export type ReviewRecord = {
   reviewer: string
   comment: string
   decided_at: string
-  activation: 'not_activated'
+  activation: 'not_activated' | 'active'
 }
 
 export type StoredInvestigation = { report: InvestigationReport; reviews: ReviewRecord[] }
@@ -216,10 +216,10 @@ export type CatalogEntry = {
   investigation_id: string
   advisory_title: string
   technique: string | null
-  activation: 'not_activated'
+  activation: 'not_activated' | 'active'
 }
 
-export type RuleCatalog = { active: Rule[]; approved_not_active: CatalogEntry[] }
+export type RuleCatalog = { active: Rule[]; approved_not_active: CatalogEntry[]; approved_active?: CatalogEntry[] }
 
 export type Transaction = {
   transaction_id?: string | null
@@ -255,6 +255,8 @@ export type TransactionScore = {
   shadow_rules: RuleVerdict[]
   shadow_flagged_by: string[]
   caught_only_in_shadow: boolean
+  approved_flagged_by?: string[]
+  caught_only_by_approved?: boolean
   note: string
 }
 
@@ -270,6 +272,9 @@ export type FeedSummary = {
   legitimate_flagged_by_active_rules: number
   legitimate_flagged_only_in_shadow: number
   shadow_rules: number
+  fraud_caught_by_approved_rules?: number
+  legitimate_flagged_by_approved_rules?: number
+  approved_rules?: number
 }
 
 export type SimulateResponse = { seed: number; disclaimer: string; summary: FeedSummary; items: FeedItem[] }

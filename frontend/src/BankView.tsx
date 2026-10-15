@@ -107,7 +107,7 @@ export default function BankView() {
       [request.card_id]: { history: [...cardState.history, { at, merchant_id: request.merchant_id, amount: request.amount, declined }].slice(-200), events },
     }
     setState(next)
-    if (result.score.shadow_flagged_by.length) shadowCount.current += 1
+    if (result.score.approved_flagged_by?.length) shadowCount.current += 1
     setActivity((items) => [{ id: Date.now() + Math.random(), cardId: request.card_id, merchant: merchantName(request.merchant_id), amount: request.amount, at, result }, ...items].slice(0, 60))
     return next
   }
@@ -124,8 +124,8 @@ export default function BankView() {
       const approvedNow = latestRules?.approved_not_active ?? []
       if (label !== 'normal' && label !== 'pay' && shadowCount.current === before) {
         setNotice(approvedNow.length
-          ? `None of your approved rules reacted to this attack. ${approvedNow.map((e) => `${e.rule.rule_id} reacts to the ${scenarioFor(e.rule)}`).join('; ')}.`
-          : 'No RulePilot rule is approved yet, so nothing can flag this attack. Approve one in Investigations first.')
+          ? `None of your approved rules blocked this attack. ${approvedNow.map((e) => `${e.rule.rule_id} reacts to the ${scenarioFor(e.rule)}`).join('; ')}.`
+          : 'No RulePilot rule is approved yet, so only the original rule (amount ≥ 1,500) is checking payments. Approve one in Investigations first.')
       }
     } catch (runError) {
       setError(safeMessage(runError))
@@ -190,7 +190,7 @@ export default function BankView() {
         <div>
           <div className="eyebrow"><span className="eyebrow-dot" /> DEMO BANK · FICTIONAL CARDS · NO REAL PAYMENTS</div>
           <h1>Demo bank</h1>
-          <p className="welcome-subtitle">Pay with a demo card and watch the rules react. The bank's live decision uses only the <b>active</b> rule. Rules you approved in RulePilot run in <b>shadow mode</b>: they show what they would have caught, without changing the decision.</p>
+          <p className="welcome-subtitle">Pay with a demo card and watch the rules react. The bank decides with the original rule <b>plus every rule you approved</b> in RulePilot. Approving a rule activates it here; rejecting it switches it off again.</p>
         </div>
         <div className="header-actions"><button className="secondary-button" onClick={reset} disabled={busy !== null}><RotateCcw size={15} /> Reset demo</button></div>
       </section>
@@ -198,8 +198,8 @@ export default function BankView() {
       <section className="panel bank-rules" aria-label="Rules in use">
         <div><span className="catalog-state state-active">Active · decides</span> <strong>RP-BASELINE-001</strong> holds any payment of 1,500 or more.</div>
         {approved.length ? approved.map((entry) => (
-          <div key={entry.rule.rule_id}><span className="catalog-state state-approved">Approved · shadow</span> <strong>{entry.rule.rule_id}</strong><span>{entry.technique ?? entry.rule.name}: would flag when <code>{ruleText(entry.rule)}</code> · try the <b>{scenarioFor(entry.rule)}</b></span></div>
-        )) : <p className="muted-text">No RulePilot rule is approved yet. Approve one in <a href="#investigations">Investigations</a> (or open a recorded run and approve it) to see it catch the attacks below.</p>}
+          <div key={entry.rule.rule_id}><span className="catalog-state state-approved">Approved · active</span> <strong>{entry.rule.rule_id}</strong><span>{entry.technique ?? entry.rule.name}: blocks when <code>{ruleText(entry.rule)}</code> · try the <b>{scenarioFor(entry.rule)}</b></span></div>
+        )) : <p className="muted-text">No RulePilot rule is approved yet. Approve one in <a href="#investigations">Investigations</a> (or open a recorded run and approve it) and it will start blocking the attacks below.</p>}
       </section>
 
       <section className="bank-cards" aria-label="Demo cards">
@@ -254,7 +254,7 @@ export default function BankView() {
           {activity.length === 0 ? <p className="muted-text">No payments yet. Make a payment or run a scenario.</p> : (
             <ul className="activity-list">
               {activity.map((item) => {
-                const shadow = item.result.score.shadow_flagged_by
+                const blockedBy = item.result.score.caught_only_by_approved ? item.result.score.approved_flagged_by ?? [] : []
                 return (
                   <li key={item.id} className={`activity-item outcome-${item.result.outcome}`}>
                     <div className="activity-main">
@@ -263,7 +263,7 @@ export default function BankView() {
                       <span>{item.merchant}</span>
                       <small>•••• {catalog?.cards.find((c) => c.card_id === item.cardId)?.last4} · {new Date(item.at).toLocaleTimeString()}</small>
                     </div>
-                    {shadow.length > 0 && <div className="shadow-flag"><ShieldAlert size={14} /> RulePilot rule {shadow.join(', ')} would flag this (shadow mode: approved, not yet active)</div>}
+                    {blockedBy.length > 0 && <div className="shadow-flag"><ShieldAlert size={14} /> Blocked by your approved RulePilot rule {blockedBy.join(', ')}; the original rule alone would have approved it</div>}
                     <details>
                       <summary>Why?</summary>
                       <p>{item.result.explanation} {item.result.shadow_summary}</p>

@@ -66,14 +66,28 @@ def test_baseline_holds_large_payments_and_issuer_declines_bad_cvv():
     assert "No RulePilot rules" in bad_cvv.shadow_summary
 
 
-def test_card_testing_burst_is_caught_by_the_approved_rule_in_shadow(client, store):  # noqa: F811
+def test_approved_rule_blocks_the_card_testing_burst(client, store):  # noqa: F811
     rule_id = approve_card_testing_rule(client)
     first = client.post("/api/v1/bank/payments", json=payment()).json()
-    assert first["outcome"] == "approved" and first["score"]["shadow_flagged_by"] == []
+    assert first["outcome"] == "approved" and first["score"]["approved_flagged_by"] == []
     burst = client.post("/api/v1/bank/payments", json=payment(history=attempts(5))).json()
-    assert burst["outcome"] == "approved"  # approval never activates a rule
-    assert burst["score"]["shadow_flagged_by"] == [rule_id]
-    assert rule_id in burst["shadow_summary"]
+    assert burst["outcome"] == "held_for_review"  # approval activates the rule
+    assert burst["score"]["approved_flagged_by"] == [rule_id] and burst["score"]["caught_only_by_approved"]
+    assert rule_id in burst["explanation"] and rule_id in burst["shadow_summary"]
+
+
+def test_rejecting_an_approved_rule_deactivates_it(client, store):  # noqa: F811
+    rule_id = approve_card_testing_rule(client)
+    investigation_id = store.catalog()[0].investigation_id
+    reject = client.post(
+        f"/api/v1/investigations/{investigation_id}/review",
+        json={"decision": "reject", "reviewer": "analyst", "comment": "Too many false alarms."},
+    )
+    assert reject.status_code == 200 and reject.json()["activation"] == "not_activated"
+    burst = client.post("/api/v1/bank/payments", json=payment(history=attempts(5))).json()
+    assert burst["outcome"] == "approved" and rule_id not in burst["score"]["decided_by"]
+    events = [event["event"] for event in client.get("/api/v1/audit").json()]
+    assert "rule_removed_from_catalog" in events
 
 
 def test_bank_catalog_and_input_validation(client):  # noqa: F811

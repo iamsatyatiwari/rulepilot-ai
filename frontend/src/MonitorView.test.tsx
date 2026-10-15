@@ -24,15 +24,17 @@ const verdict = (rule: typeof baselineRule, flagged: boolean) => ({
   rule_id: rule.rule_id, name: rule.name, version: 1, flagged, missing_fields: [], investigation_id: null, technique: null,
 })
 
-const score = (id: string, active: boolean, shadow: boolean) => ({
+const score = (id: string, base: boolean, approved: boolean) => ({
   transaction_id: id,
-  decision: active ? 'flag' : 'allow',
-  decided_by: active ? [baselineRule.rule_id] : [],
-  active_rules: [verdict(baselineRule, active)],
-  shadow_rules: [verdict(approvedRule, shadow)],
-  shadow_flagged_by: shadow ? [approvedRule.rule_id] : [],
-  caught_only_in_shadow: !active && shadow,
-  note: 'Shadow rules are human-approved but not active: they are evaluated for comparison and never change the decision.',
+  decision: base || approved ? 'flag' : 'allow',
+  decided_by: [...(base ? [baselineRule.rule_id] : []), ...(approved ? [approvedRule.rule_id] : [])],
+  active_rules: [verdict(baselineRule, base), { ...verdict(approvedRule, approved), investigation_id: 'inv-1' }],
+  shadow_rules: [],
+  shadow_flagged_by: [],
+  caught_only_in_shadow: false,
+  approved_flagged_by: approved ? [approvedRule.rule_id] : [],
+  caught_only_by_approved: approved && !base,
+  note: 'Approved rules are active and can decide. Shadow rules, if any, are evaluated for comparison and never change the decision.',
 })
 
 const txn = (id: string, amount: number) => ({
@@ -43,9 +45,10 @@ const feed = {
   seed: 1,
   disclaimer: 'Mock bank feed: fresh synthetic transactions.',
   summary: {
-    transactions: 3, synthetic_fraud: 2, flagged_by_active_rules: 1, fraud_caught_by_active_rules: 1,
-    fraud_caught_only_in_shadow: 1, fraud_missed_by_all_rules: 0, legitimate_flagged_by_active_rules: 0,
-    legitimate_flagged_only_in_shadow: 0, shadow_rules: 1,
+    transactions: 3, synthetic_fraud: 2, flagged_by_active_rules: 2, fraud_caught_by_active_rules: 2,
+    fraud_caught_only_in_shadow: 0, fraud_missed_by_all_rules: 0, legitimate_flagged_by_active_rules: 0,
+    legitimate_flagged_only_in_shadow: 0, shadow_rules: 0,
+    fraud_caught_by_approved_rules: 1, legitimate_flagged_by_approved_rules: 0, approved_rules: 1,
   },
   items: [
     { transaction: txn('FEED-1-001', 4.5), synthetic_fraud: true, score: score('FEED-1-001', false, true) },
@@ -69,7 +72,7 @@ describe('Transaction monitor', () => {
       if (url.endsWith('/api/v1/rule-catalog')) {
         return jsonResponse({
           active: [baselineRule],
-          approved_not_active: [{ rule: approvedRule, approved_by: 'analyst-1', approved_at: '2026-10-14T10:05:00Z', review_comment: 'ok', investigation_id: 'inv-1', advisory_title: 'Preventing Card Testing', technique: 'Card testing', activation: 'not_activated' }],
+          approved_not_active: [{ rule: approvedRule, approved_by: 'analyst-1', approved_at: '2026-10-14T10:05:00Z', review_comment: 'ok', investigation_id: 'inv-1', advisory_title: 'Preventing Card Testing', technique: 'Card testing', activation: 'active' }],
         })
       }
       if (url.endsWith('/api/v1/transactions/simulate') && init?.method === 'POST') return jsonResponse(feed)
@@ -88,17 +91,17 @@ describe('Transaction monitor', () => {
     vi.unstubAllGlobals()
   })
 
-  it('lists active and shadow rules separately', async () => {
+  it('lists the original and approved rules as active', async () => {
     render(<App />)
     const rules = await screen.findByRole('region', { name: 'Rules applied to the feed' })
-    expect(await within(rules).findByText('Shadow · approved')).toBeInTheDocument()
+    expect(await within(rules).findByText('Approved · active')).toBeInTheDocument()
     expect(within(rules).getByText('Active · decides')).toBeInTheDocument()
-    expect(screen.getByText('1 rule(s) in shadow')).toBeInTheDocument()
+    expect(screen.getByText('1 approved rule(s) active')).toBeInTheDocument()
   })
 
-  it('streams a feed and highlights fraud caught only by an approved rule', async () => {
+  it('streams a feed and highlights fraud caught by an approved rule', async () => {
     render(<App />)
-    await screen.findByText('Shadow · approved')
+    await screen.findByText('Approved · active')
     vi.useFakeTimers()
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /stream 20 transactions/i }))
@@ -108,7 +111,7 @@ describe('Transaction monitor', () => {
 
     const table = screen.getByRole('table', { name: /mock bank transactions/i })
     expect(within(table).getAllByRole('row')).toHaveLength(4)
-    expect(within(table).getByText('Caught only by approved rule')).toBeInTheDocument()
+    expect(within(table).getByText('Caught by approved rule')).toBeInTheDocument()
     expect(within(table).getByText('Caught by active rule')).toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'Feed summary' })).getByText('+1')).toBeInTheDocument()
 
@@ -116,13 +119,13 @@ describe('Transaction monitor', () => {
     expect(JSON.parse(String(post?.[1]?.body))).toEqual({ count: 20, seed: 1 })
   })
 
-  it('scores a single transaction and explains that shadow rules do not decide', async () => {
+  it('scores a single transaction and shows the approved rule deciding', async () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Card-testing burst' }))
     fireEvent.click(screen.getByRole('button', { name: /score transaction/i }))
 
-    expect(await screen.findByText('Allowed, but an approved rule would flag it')).toBeInTheDocument()
-    expect(screen.getByText(/never change the decision/)).toBeInTheDocument()
+    expect(await screen.findByText('Flagged by an approved rule')).toBeInTheDocument()
+    expect(screen.getByText(/Approved rules are active/)).toBeInTheDocument()
     const post = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/api/v1/transactions/score'))
     const body = JSON.parse(String(post?.[1]?.body))
     expect(body.transaction).toMatchObject({ amount: 3.5, transactions_1h: 9, card_present: 0 })
@@ -134,7 +137,7 @@ describe('Transaction monitor', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'SIM-swap takeover' }))
     fireEvent.click(screen.getByRole('button', { name: /score transaction/i }))
 
-    await screen.findByText(/never change the decision/)
+    await screen.findByText(/Approved rules are active/)
     const post = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/api/v1/transactions/score'))
     const body = JSON.parse(String(post?.[1]?.body))
     expect(body.transaction).toMatchObject({ days_since_sim_change: 1, new_device: 1, credential_resets_24h: 2, new_payee: 1, hour_of_day: 2 })

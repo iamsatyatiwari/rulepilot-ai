@@ -4,7 +4,7 @@ This is a demonstration surface, not a payment system. The browser keeps each
 demo card's recent activity and sends it with every payment; the server
 derives the rule features from that history (velocity, declines, new payee,
 SIM change, credential resets), then scores the payment exactly as the
-transaction monitor does: active rules decide, approved rules run in shadow.
+transaction monitor does: the baseline and every approved rule are active and decide.
 Keeping the server stateless means any Cloud Run instance can answer.
 """
 
@@ -158,25 +158,28 @@ def derive_features(request: PaymentRequest) -> Transaction:
     )
 
 
-def process_payment(request: PaymentRequest, shadow_entries: list[CatalogEntry]) -> PaymentResult:
+def process_payment(request: PaymentRequest, approved_entries: list[CatalogEntry]) -> PaymentResult:
     features = derive_features(request)
-    score = score_transaction(features, [BASELINE_RULE], shadow_entries)
+    score = score_transaction(features, [BASELINE_RULE], [], approved_entries)
     if not request.cvv_correct:
         outcome: Literal["approved", "held_for_review", "declined_by_issuer"] = "declined_by_issuer"
         explanation = "Declined by the card issuer: the security code did not match."
     elif score.decision == "flag":
         outcome = "held_for_review"
         explanation = f"Held for review by active rule {', '.join(score.decided_by)}."
+        if score.caught_only_by_approved:
+            explanation = (
+                f"Held for review by approved RulePilot rule {', '.join(score.approved_flagged_by)}; "
+                "the original rule alone would have approved it."
+            )
     else:
         outcome = "approved"
         explanation = "Approved: no active rule flagged this payment."
-    if score.shadow_flagged_by:
-        shadow_summary = (
-            f"Approved RulePilot rule {', '.join(score.shadow_flagged_by)} would flag this payment "
-            "(shadow mode: it does not change the decision)."
-        )
-    elif score.shadow_rules:
-        shadow_summary = "No approved RulePilot rule would flag this payment."
+    # Field name kept for compatibility; it now summarizes the approved (active) rules.
+    if score.approved_flagged_by:
+        shadow_summary = f"Approved RulePilot rule {', '.join(score.approved_flagged_by)} flagged this payment."
+    elif approved_entries:
+        shadow_summary = "No approved RulePilot rule flagged this payment."
     else:
         shadow_summary = "No RulePilot rules have been approved yet."
     return PaymentResult(

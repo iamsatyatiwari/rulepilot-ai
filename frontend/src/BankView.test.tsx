@@ -31,11 +31,11 @@ const catalog = {
 function result(body: { history: unknown[]; cvv_correct: boolean }) {
   const shadow = body.history.length >= 5
   return {
-    outcome: body.cvv_correct ? 'approved' : 'declined_by_issuer',
+    outcome: !body.cvv_correct ? 'declined_by_issuer' : shadow ? 'held_for_review' : 'approved',
     explanation: body.cvv_correct ? 'Approved: no active rule flagged this payment.' : 'Declined by the card issuer.',
-    shadow_summary: shadow ? 'Approved RulePilot rule AGT-a48565d1-1 would flag this payment.' : 'No approved RulePilot rule would flag this payment.',
+    shadow_summary: shadow ? 'Approved RulePilot rule AGT-a48565d1-1 flagged this payment.' : 'No approved RulePilot rule flagged this payment.',
     features: { transactions_1h: body.history.length, declined_attempts_24h: 0, card_present: 0, new_payee: 0, new_device: 1, days_since_sim_change: 430, credential_resets_24h: 0 },
-    score: { transaction_id: 'BANK', decision: 'allow', decided_by: [], active_rules: [], shadow_rules: [], shadow_flagged_by: shadow ? [approvedRule.rule_id] : [], caught_only_in_shadow: shadow, note: '' },
+    score: { transaction_id: 'BANK', decision: 'allow', decided_by: [], active_rules: [], shadow_rules: [], shadow_flagged_by: [], caught_only_in_shadow: false, approved_flagged_by: shadow ? [approvedRule.rule_id] : [], caught_only_by_approved: shadow, note: '' },
   }
 }
 
@@ -50,7 +50,7 @@ describe('Demo bank', () => {
       const url = String(input)
       if (url.endsWith('/health')) return jsonResponse({ status: 'ok' })
       if (url.endsWith('/api/v1/bank/catalog')) return jsonResponse(catalog)
-      if (url.endsWith('/api/v1/rule-catalog')) return jsonResponse({ active: [], approved_not_active: [{ rule: approvedRule, approved_by: 'analyst', approved_at: '2026-10-15T10:00:00Z', review_comment: 'ok', investigation_id: 'inv-1', advisory_title: 'Preventing Card Testing', technique: 'Card testing', activation: 'not_activated' }] })
+      if (url.endsWith('/api/v1/rule-catalog')) return jsonResponse({ active: [], approved_not_active: [{ rule: approvedRule, approved_by: 'analyst', approved_at: '2026-10-15T10:00:00Z', review_comment: 'ok', investigation_id: 'inv-1', advisory_title: 'Preventing Card Testing', technique: 'Card testing', activation: 'active' }] })
       if (url.endsWith('/api/v1/bank/payments')) return jsonResponse(result(JSON.parse(String(init?.body))))
       throw new Error(`unexpected ${url}`)
     })
@@ -62,7 +62,7 @@ describe('Demo bank', () => {
     vi.unstubAllGlobals()
   })
 
-  it('runs the card-testing attack with growing card history and shows shadow catches', async () => {
+  it('runs the card-testing attack and the approved rule blocks it', async () => {
     render(<App />)
     expect(await screen.findByText('AGT-a48565d1-1')).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /card-testing attack/i }))
@@ -70,12 +70,13 @@ describe('Demo bank', () => {
     const activity = screen.getByRole('region', { name: 'Card activity' })
     const paymentCalls = () => fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/api/v1/bank/payments'))
     await waitFor(() => expect(paymentCalls()).toHaveLength(8), { timeout: 4000 })
-    await waitFor(() => expect(within(activity).getAllByText(/would flag this \(shadow mode/)).toHaveLength(3))
+    await waitFor(() => expect(within(activity).getAllByText(/Blocked by your approved RulePilot rule/)).toHaveLength(3))
     const payments = paymentCalls()
     const bodies = payments.map(([, init]) => JSON.parse(String(init?.body)))
     expect(bodies.map((body) => body.history.length)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
     expect(bodies.every((body) => body.card_id === 'card-ben' && /[+-]\d\d:\d\d$/.test(body.at))).toBe(true)
     expect(within(activity).getAllByText('Approved').length).toBeGreaterThan(0)
+    expect(within(activity).getAllByText('Held for review').length).toBeGreaterThan(0)
     expect(within(activity).getAllByText('Declined by issuer').length).toBeGreaterThan(0)
   })
 
@@ -92,7 +93,7 @@ describe('Demo bank', () => {
     render(<App />)
     expect(await screen.findByText(/try the/)).toHaveTextContent('Card-testing attack')
     fireEvent.click(await screen.findByRole('button', { name: /sim-swap takeover/i }))
-    expect(await screen.findByText(/None of your approved rules reacted to this attack/)).toHaveTextContent('AGT-a48565d1-1 reacts to the Card-testing attack')
+    expect(await screen.findByText(/None of your approved rules blocked this attack/)).toHaveTextContent('AGT-a48565d1-1 reacts to the Card-testing attack')
   })
 
   it('formats local timestamps with the UTC offset', () => {

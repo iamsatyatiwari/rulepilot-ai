@@ -12,14 +12,14 @@ const STEPS: { title: string; body: string; action: string; target: GuideTarget;
   },
   {
     title: 'Read the result and approve',
-    body: 'The summary says what was found and how much the proposed rule improves detection on held-out data. Enter your name and a comment, then Approve. The rule joins the catalog but is never switched on automatically.',
+    body: 'The summary says what was found and how much the proposed rule improves detection on held-out data. Enter your name and a comment, then Approve. The rule becomes active in the Demo bank straight away; Reject switches it off.',
     action: 'Review in Investigations',
     target: 'investigations',
     icon: UserCheck,
   },
   {
     title: 'Try it in the demo bank',
-    body: 'Run the “Card-testing attack” on a demo card. The bank still approves the tiny payments (only the old rule is active), but every attempt the approved RulePilot rule would block is marked in red.',
+    body: 'Run the “Card-testing attack” on a demo card. Before approval the bank lets the tiny payments through (the original rule only checks amounts of 1,500 or more). After you approve the rule, the same attack is held for review from about the sixth attempt.',
     action: 'Open the Demo bank',
     target: 'bank',
     icon: CreditCard,
@@ -65,7 +65,7 @@ export default function GuideView({ onNavigate }: { onNavigate: (target: GuideTa
         <ul className="bullet-list">
           <li><b>Gemini proposes, code measures.</b> Every number on screen is computed by the rule engine, never written by the model.</li>
           <li><b>The test data is used once.</b> The agent only sees training and validation data; the held-out result is computed after it finishes.</li>
-          <li><b>Humans decide, nothing auto-activates.</b> Approved rules run in shadow mode until a separate deployment decision.</li>
+          <li><b>Humans decide.</b> Gemini can only propose. A rule starts blocking payments only when a person approves it, and rejecting it switches it off again. Every decision is in the audit log.</li>
         </ul>
         <p className="muted-text">All transactions are synthetic or simulated. Results show how the workflow behaves, not real-world detection rates.</p>
       </section>

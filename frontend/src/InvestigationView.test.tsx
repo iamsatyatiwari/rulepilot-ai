@@ -141,12 +141,12 @@ describe('Intelligence investigations workspace', () => {
       if (url.endsWith('/api/v1/rule-catalog')) {
         const approved = (stored.reviews as { decision: string; reviewer: string; comment: string; decided_at: string }[])
           .filter((review) => review.decision === 'approve')
-          .map((review) => ({ rule: { ...candidate, status: 'approved' }, approved_by: review.reviewer, approved_at: review.decided_at, review_comment: review.comment, investigation_id: 'inv-1', advisory_title: advisory.title, technique: 'Card testing', activation: 'not_activated' }))
+          .map((review) => ({ rule: { ...candidate, status: 'approved' }, approved_by: review.reviewer, approved_at: review.decided_at, review_comment: review.comment, investigation_id: 'inv-1', advisory_title: advisory.title, technique: 'Card testing', activation: 'active' }))
         return jsonResponse({ active: [baselineRule], approved_not_active: approved })
       }
       if (url.endsWith('/api/v1/investigations/inv-1/review')) {
         const body = JSON.parse(String(init?.body))
-        stored = { ...stored, reviews: [{ review_id: 'inv-1-R1', investigation_id: 'inv-1', rule_id: candidate.rule_id, rule_version: 1, decided_at: '2026-10-14T10:05:00Z', activation: 'not_activated', ...body }] }
+        stored = { ...stored, reviews: [{ review_id: 'inv-1-R1', investigation_id: 'inv-1', rule_id: candidate.rule_id, rule_version: 1, decided_at: '2026-10-14T10:05:00Z', activation: body.decision === 'approve' ? 'active' : 'not_activated', ...body }] }
         return jsonResponse(stored.reviews[0])
       }
       if (url.endsWith('/api/v1/investigations/inv-1')) return jsonResponse(stored)
@@ -178,7 +178,7 @@ describe('Intelligence investigations workspace', () => {
     expect(JSON.parse(String(post?.[1]?.body))).toEqual({ advisory_id: advisory.advisory_id, dataset_id: 'payments-scenario-v3' })
   })
 
-  it('records a human review decision without activating the rule', async () => {
+  it('records a human review decision and activates the approved rule', async () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: `Investigate ${advisory.title}` }))
     await screen.findByText(/changed held-out rule-set recall/)
@@ -192,7 +192,7 @@ describe('Intelligence investigations workspace', () => {
 
     const history = await screen.findByRole('list', { name: 'Review history' })
     expect(within(history).getByText('Approved for further testing')).toBeInTheDocument()
-    expect(within(history).getByText(/activation: not activated/)).toBeInTheDocument()
+    expect(within(history).getByText(/activation: active/)).toBeInTheDocument()
 
     const banner = document.querySelector('.report-banner') as HTMLElement
     await within(banner).findByText('Approved for further testing')
@@ -200,12 +200,12 @@ describe('Intelligence investigations workspace', () => {
     expect(banner).not.toHaveTextContent(/Awaiting human review/)
 
     const catalog = screen.getByRole('region', { name: 'Reviewed rule catalog' })
-    expect(await within(catalog).findByText('Approved · not active')).toBeInTheDocument()
+    expect(await within(catalog).findByText('Approved · active')).toBeInTheDocument()
     expect(within(catalog).getByText(/Approved by analyst-1/)).toBeInTheDocument()
 
     // A clear confirmation replaces the form, so the decision cannot be submitted twice by accident.
-    const confirmation = await screen.findByText(/runs in/, { selector: '.review-confirmation p' })
-    expect(confirmation).toHaveTextContent('shadow mode')
+    const confirmation = await screen.findByText(/is now/, { selector: '.review-confirmation p' })
+    expect(confirmation).toHaveTextContent('active')
     expect(screen.getByRole('link', { name: /test it in the demo bank/i })).toHaveAttribute('href', '#bank')
     expect(screen.queryByRole('button', { name: /approve for further testing/i })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /record a different decision/i }))

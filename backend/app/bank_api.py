@@ -29,7 +29,7 @@ def catalog() -> BankCatalog:
 
 @router.post("/payments", response_model=PaymentResult)
 def pay(request: PaymentRequest, store: GovernanceStore = Depends(get_store)) -> PaymentResult:
-    """Score a demo payment: active rules decide; approved rules are reported in shadow mode."""
+    """Score a demo payment: the baseline and every approved rule are active and decide."""
     try:
         return process_payment(request, store.catalog())
     except KeyError as error:
