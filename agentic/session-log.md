@@ -13,19 +13,16 @@ This file carries working state from one AI-assistant session (context window) t
 
 ## Current handoff
 
-- **Branch:** `feat/shadow-scoring-ingestion`, created from `main` after `feat/m3-intelligence-agent` was fast-forward merged into `main` locally (14 Oct).
-- **Phase:** local testing and small features before Cloud Run deploy. Deadline 18 Oct 2026, team target 17 Oct — see `PROJECT_STATUS.md`.
-- **Decided with user (14 Oct):** no real banking integration. Instead (a) mock bank feed + shadow scoring to show the engine catching new-rule fraud, (b) scheduled ingestion endpoint for Cloud Scheduler (the "cron job" in the user's sketch). Both **done locally**.
-- **Local test status:**
-  - ✅ 98 backend / 13 frontend tests, tsc, build; production-mode + Firestore-emulator smoke checks; headless Chrome.
-  - ✅ Docker (Colima) installed; `docker build -t rulepilot-ai:local .` succeeds (Python 3.11 image).
-  - ✅ Live Gemini (14 Oct 17:41): card testing → `pending_human_review`, recall +43.6 pp, all guardrails pass; SIM swap → `not_testable`.
-- **Gemini key facts:** key is in `backend/.env` only. It gets 429 on `gemini-3.8-flash`, `gemini-flash-latest`, `gemini-3.6-flash`, and often `gemini-3.5-flash`; only `gemini-3.5-flash-lite` reliably works → **billing is probably not enabled** on the key's project. Local `.env` uses `RULEPILOT_GEMINI_MODEL=gemini-3.5-flash`, fallback `gemini-3.5-flash-lite`. For Cloud Run, enable billing or set the same env vars.
-- **Fixed:** a stalled model request could hang ~7 min past the 120 s limit (ADK waits for the in-flight call on cancel). Each request now has an HTTP timeout (`request_timeout_ms`, ≤ 45 s) and timeouts count as transient → fallback.
-- **Repo location:** moved from `~/Documents/git_projects/rulepilot-ai` (iCloud-synced; caused `"<name> 2.<ext>"` duplicate files) to **`~/dev/rulepilot-ai`** on 14 Oct. `backend/.venv` was recreated there. If `pytest` ever reports ~144 tests, look for `* 2.py` copies.
-- **GitHub:** `gh` CLI logged in as `shuklapiyush113` (HTTPS, credential helper set up). Git identity: `Piyush Shukla <91715671+shuklapiyush113@users.noreply.github.com>` (global).
-- **Git state:** `shuklapiyush113` is a collaborator (write). Pushed 14 Oct: `main` → `74dfbab` (fast-forward), `feat/shadow-scoring-ingestion` (tracks origin). **Draft PR #1** (https://github.com/iamsatyatiwari/rulepilot-ai/pull/1) into `main`, awaiting user review — do not mark ready or merge without the user.
-- **Next step:** user reviews draft PR #1 → deploy to Cloud Run (needs GCP project ID + billing).
+- **Branches:** PR #1 (shadow scoring + ingestion) **merged into `main`** by the user on 14 Oct (`aba1231`). `feat/dataset-v3` is one commit ahead of `main`; pushed with draft PR #2 into `main`, awaiting user review — do not mark ready or merge without the user.
+- **Phase:** local development before Cloud Run deploy. Deadline 18 Oct 2026, team target 17 Oct — see `PROJECT_STATUS.md` (stale: still says the M3 branch is unmerged and 82 tests; refresh with the README rewrite).
+- **Done 14 Oct (feat/dataset-v3):** `payments-scenario-v3` (30k rows, 202 held-out fraud vs 39 on v2), 5 new fields, injected SIM-swap takeover, default for investigations/ingestion; mock feed and monitor UI updated; golden set (L4) `app/golden.py` + `scripts/golden_eval.py`. 110 backend / 14 frontend tests, tsc, build pass. Live golden run: both v3 cases PASS (flash-lite fallback).
+- **Done 15 Oct (same branch, PR #2):** takeover amounts redrawn so ~80% stay under 1,500 (judged on train/validation: baseline OR SIM rule recall 33% → 45–48%). Recorded demo runs refreshed live on v3: card testing (+5.4 pp), SIM swap testable (+10.8 pp), covered-after-approval; v2 SIM-swap `not_testable` recording kept. 112 backend / 14 frontend tests.
+- **Gemini quota (15 Oct):** stronger models still 429/503 the next morning; every live run used `gemini-3.5-flash-lite` fallback. About 22 flash-lite requests used today. Billing is still needed before the demo.
+- **Gemini key facts:** key is in `backend/.env` only. Free tier: 20 requests/day per model; 429 on `gemini-3.8-flash`, `gemini-flash-latest`, `gemini-3.6-flash`, often `gemini-3.5-flash`; `gemini-3.5-flash-lite` works → enable billing before the demo/Cloud Run.
+- **Untracked `requirements.txt` at repo root:** VS Code Docker scaffold (fastapi 0.109, gunicorn) that conflicts with `backend/requirements-lock.txt`; left uncommitted, suggest deleting.
+- **Repo location:** `~/dev/rulepilot-ai` (moved off iCloud). If `pytest` ever reports far too many tests, look for `* 2.py` copies.
+- **GitHub:** `gh` logged in as `shuklapiyush113` (collaborator, write). Repo is public.
+- **Next steps:** user reviews draft PR #2 → README rewrite + PROJECT_STATUS refresh → Cloud Run deploy (needs GCP project ID + billing) → deck → video.
 
 ## Local environment (macOS)
 
@@ -57,6 +54,14 @@ git diff --check
 ```
 
 ## Log
+
+### 2026-10-15 — takeover amounts and recorded runs
+- Redrew SIM-swap takeover amounts (mostly < 1,500); re-recorded 3 demo runs live on v3; golden tests now cover the recordings.
+
+### 2026-10-14 — dataset v3 and golden set
+- PR #1 merge was blocked by the permission classifier; the user merged it on GitHub. Built on `feat/dataset-v3`, pushed as draft PR #2.
+- Added v3 dataset, new fields, SIM-swap takeover pattern, feed/monitor updates, golden-set module, script and tests; docs updated (architecture, skills 6/7, ui-guide, context, tasks L4/L8, IMPLEMENTATION_SUMMARY).
+- Live golden run passes on v3; found that the baseline already catches most injected takeovers (open decision above).
 
 ### 2026-10-14 — repo move and GitHub setup
 - Moved repo to `~/dev/rulepilot-ai`; installed `gh`, logged in as `shuklapiyush113`; set git identity; re-authored the two unpushed commits. Push waits on collaborator access.

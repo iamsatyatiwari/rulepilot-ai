@@ -68,11 +68,13 @@ Expect 20–90 s. `status` should be `pending_human_review` for card testing and
 2. Populate it in the generator in `app/data.py` (older datasets leave it `None`; rules fail closed).
 3. For a new dataset, register it in `app/datasets.py` (`DatasetInfo` with version, seed, limitations) and add its id to the `Literal` types in `api.py` and `investigations_api.py`.
 4. Document injected patterns in `limitations`.
+5. Keep older generators byte-identical (draw new fields after the shared row) so recorded runs stay reproducible.
+6. Judge the data design on training/validation splits only, then run the golden set (skill 7).
 
 ## 7. Change the prompt or model
 
 1. Edit `INSTRUCTION` in `app/agent/agent.py` or `RULEPILOT_GEMINI_MODEL`.
-2. Re-run both demo advisories (skill 3) and compare with `app/intel/recorded/`: same statuses, all guardrails passing, quotes verified.
+2. Run the golden set: `cd backend && .venv/bin/python scripts/golden_eval.py` (add `--repeat 3` for stability, `--case <id>` to limit, `--save DIR` to keep reports). Every case must PASS: expected status and coverage, all guardrails, verified quotes, relevant rule fields. Cases live in `app/golden.py`.
 3. Never judge prompt changes by held-out test numbers.
 
 ## 8. Refresh the recorded demo runs

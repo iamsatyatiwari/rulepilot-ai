@@ -128,4 +128,15 @@ describe('Transaction monitor', () => {
     expect(body.transaction).toMatchObject({ amount: 3.5, transactions_1h: 9, card_present: 0 })
     expect(body.transaction).not.toHaveProperty('ground_truth_fraud')
   })
+
+  it('sends the SIM-swap preset with device, SIM-change, and payee signals as integers', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'SIM-swap takeover' }))
+    fireEvent.click(screen.getByRole('button', { name: /score transaction/i }))
+
+    await screen.findByText(/never change the decision/)
+    const post = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/api/v1/transactions/score'))
+    const body = JSON.parse(String(post?.[1]?.body))
+    expect(body.transaction).toMatchObject({ days_since_sim_change: 1, new_device: 1, credential_resets_24h: 2, new_payee: 1, hour_of_day: 2 })
+  })
 })

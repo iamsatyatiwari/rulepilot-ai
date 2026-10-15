@@ -34,15 +34,21 @@ const FIELDS: { key: keyof Transaction; label: string; step: string }[] = [
   { key: 'card_present', label: 'Card present (0/1)', step: '1' },
   { key: 'distance_from_home_km', label: 'Distance from home (km)', step: '0.1' },
   { key: 'account_age_days', label: 'Account age (days)', step: '1' },
+  { key: 'hour_of_day', label: 'Hour of day (0-23)', step: '1' },
+  { key: 'new_device', label: 'New device (0/1)', step: '1' },
+  { key: 'days_since_sim_change', label: 'Days since SIM change', step: '1' },
+  { key: 'credential_resets_24h', label: 'Credential resets (24h)', step: '1' },
+  { key: 'new_payee', label: 'New payee (0/1)', step: '1' },
 ]
 
 const PRESETS: Record<string, Transaction> = {
-  'Card-testing burst': { amount: 3.5, transactions_1h: 9, transactions_24h: 14, declined_attempts_24h: 6, card_present: 0, distance_from_home_km: 40, account_age_days: 420 },
-  'Large purchase abroad': { amount: 2400, transactions_1h: 1, transactions_24h: 2, declined_attempts_24h: 0, card_present: 1, distance_from_home_km: 1800, account_age_days: 900 },
-  'Everyday purchase': { amount: 42.1, transactions_1h: 0, transactions_24h: 2, declined_attempts_24h: 0, card_present: 1, distance_from_home_km: 6, account_age_days: 1500 },
+  'Card-testing burst': { amount: 3.5, transactions_1h: 9, transactions_24h: 14, declined_attempts_24h: 6, card_present: 0, distance_from_home_km: 40, account_age_days: 420, hour_of_day: 3, new_device: 1, days_since_sim_change: 640, credential_resets_24h: 0, new_payee: 1 },
+  'SIM-swap takeover': { amount: 1240, transactions_1h: 1, transactions_24h: 2, declined_attempts_24h: 0, card_present: 0, distance_from_home_km: 35, account_age_days: 2100, hour_of_day: 2, new_device: 1, days_since_sim_change: 1, credential_resets_24h: 2, new_payee: 1 },
+  'Large purchase abroad': { amount: 2400, transactions_1h: 1, transactions_24h: 2, declined_attempts_24h: 0, card_present: 1, distance_from_home_km: 1800, account_age_days: 900, hour_of_day: 15, new_device: 0, days_since_sim_change: 410, credential_resets_24h: 0, new_payee: 1 },
+  'Everyday purchase': { amount: 42.1, transactions_1h: 0, transactions_24h: 2, declined_attempts_24h: 0, card_present: 1, distance_from_home_km: 6, account_age_days: 1500, hour_of_day: 12, new_device: 0, days_since_sim_change: 980, credential_resets_24h: 0, new_payee: 0 },
 }
 
-const INTEGER_FIELDS = new Set<keyof Transaction>(['transactions_1h', 'transactions_24h', 'declined_attempts_24h', 'card_present', 'account_age_days'])
+const INTEGER_FIELDS = new Set<keyof Transaction>(['transactions_1h', 'transactions_24h', 'declined_attempts_24h', 'card_present', 'account_age_days', 'hour_of_day', 'new_device', 'days_since_sim_change', 'credential_resets_24h', 'new_payee'])
 
 function toPayload(form: Record<string, string>): Transaction {
   const transaction: Transaction = { transaction_id: 'MANUAL-001' }
@@ -182,7 +188,7 @@ export default function MonitorView() {
           <div className="table-wrap">
             <table className="feed-table">
               <caption className="sr-only">Mock bank transactions with active and shadow rule verdicts</caption>
-              <thead><tr><th scope="col">Transaction</th><th scope="col">Amount</th><th scope="col">Txns 1h</th><th scope="col">Declines 24h</th><th scope="col">Card present</th><th scope="col">Distance km</th><th scope="col">Decision</th><th scope="col">Shadow</th><th scope="col">Synthetic label</th><th scope="col">Outcome</th></tr></thead>
+              <thead><tr><th scope="col">Transaction</th><th scope="col">Amount</th><th scope="col">Txns 1h</th><th scope="col">Declines 24h</th><th scope="col">Card present</th><th scope="col">SIM change (days)</th><th scope="col">New device</th><th scope="col">Decision</th><th scope="col">Shadow</th><th scope="col">Synthetic label</th><th scope="col">Outcome</th></tr></thead>
               <tbody>
                 {feed.items.slice(0, visible).map((item) => {
                   const outcome = outcomeOf(item)
@@ -194,7 +200,8 @@ export default function MonitorView() {
                       <td>{t.transactions_1h}</td>
                       <td>{t.declined_attempts_24h}</td>
                       <td>{t.card_present ? 'Yes' : 'No'}</td>
-                      <td>{numberFormat.format(t.distance_from_home_km ?? 0)}</td>
+                      <td>{t.days_since_sim_change ?? '—'}</td>
+                      <td>{t.new_device == null ? '—' : t.new_device ? 'Yes' : 'No'}</td>
                       <td><span className={`verdict ${item.score.decision === 'flag' ? 'verdict-flag' : 'verdict-allow'}`}>{item.score.decision === 'flag' ? 'Flag' : 'Allow'}</span></td>
                       <td>{item.score.shadow_flagged_by.length ? <span className="verdict verdict-shadow">Would flag</span> : <span className="not-missed">—</span>}</td>
                       <td>{item.synthetic_fraud ? 'Fraud' : 'Legitimate'}</td>

@@ -127,7 +127,7 @@ The form appears only when the status is *Pending human review*. Multiple decisi
 | Rules panel | *Active · decides* (baseline) and *Shadow · approved* rules with provenance |
 | Summary strip | Fraud caught by active rules, **caught only by approved rules** (highlighted), missed by all, shadow false alarms |
 | Feed table | Features, active *Decision*, *Shadow* verdict, synthetic label, and outcome tag. Green rows = caught only in shadow; red rows = missed by every rule |
-| Score a transaction | Presets (*Card-testing burst*, *Large purchase abroad*, *Everyday purchase*) or manual values → `POST /api/v1/transactions/score` |
+| Score a transaction | Presets (*Card-testing burst*, *SIM-swap takeover*, *Large purchase abroad*, *Everyday purchase*) or manual values → `POST /api/v1/transactions/score` |
 
 The result banner in Investigations now shows the latest human decision (e.g. *Rejected*) instead of *Pending human review* once a review exists.
 

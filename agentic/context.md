@@ -40,8 +40,9 @@ First vertical slice: payment-card fraud. Account takeover, scams, and AML are f
 | M4 continuous learning: reviewed rule catalog, review-history tool, Firestore storage | Done (L1–L3), verified live |
 | T9 README, deck, 3-minute video | Not started |
 | Shadow scoring (mock bank feed) and scheduled ingestion endpoint | Done locally, not yet deployed |
+| `payments-scenario-v3` dataset (30k rows, 12 fields) and golden-set evaluation (L4) | Done locally; live golden run passes on v3 |
 
-Latest verification: 96 backend tests, 13 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
+Latest verification: 112 backend tests, 14 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
 
 ## Key decisions (do not reverse without a demonstrated need)
 
@@ -49,8 +50,8 @@ Latest verification: 96 backend tests, 13 frontend tests, type check and build p
 2. **One ADK agent** with five tools. No multi-agent system.
 3. **Gemini API key auth** (`GOOGLE_API_KEY`); Secret Manager on Cloud Run. Vertex AI with ADC is supported by config but not used.
 4. **Model fallback chain** because Gemini Flash capacity is unreliable: `gemini-3.8-flash → gemini-flash-latest → gemini-3.6-flash → gemini-3.5-flash-lite`.
-5. **Synthetic data, honestly labelled.** `card-scenario-v2` contains an injected card-testing pattern so the workflow can show a detectable gap. Always say so.
-6. **Two demo advisories:** card testing (testable) and SIM swap (not testable — shows the system refuses to invent a link).
+5. **Synthetic data, honestly labelled.** `card-scenario-v2` contains an injected card-testing pattern; `payments-scenario-v3` (default for investigations) adds an injected SIM-swap account-takeover pattern and device, SIM-change, credential-reset, and payee fields. Always say so.
+6. **Two demo advisories:** card testing (testable) and SIM swap — testable on `payments-scenario-v3`, `not_testable` on `card-scenario-v2` (shows the system refuses to invent a link when the data is missing).
 7. **Single Cloud Run service** serving API + built dashboard on one origin.
 8. **"Learning" means governed system state, not model training:** approved rules enter the catalog and reviewer feedback is available to the agent as data. No fine-tuning, no autonomous rule changes.
 

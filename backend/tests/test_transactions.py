@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 import app.investigations_api as investigations_api
 from app.baseline import BASELINE_RULE
-from app.data import DEMO_FEED_MAX, create_card_scenario_dataset, create_demo_feed
+from app.data import DEMO_FEED_MAX, create_card_scenario_dataset, create_demo_feed, create_payments_scenario_dataset
 from app.governance import GovernanceStore
 from app.intel.advisories import load_curated_advisories
 from app.main import app
@@ -64,7 +64,8 @@ def test_demo_feed_is_deterministic_bounded_and_not_dataset_records():
     assert create_demo_feed(30, seed=6) != first
     assert all(t.transaction_id.startswith("FEED-5-") for t in first)
     dataset_features = {
-        t.model_dump_json(exclude={"transaction_id"}) for t in create_card_scenario_dataset()
+        t.model_dump_json(exclude={"transaction_id"})
+        for t in [*create_card_scenario_dataset(), *create_payments_scenario_dataset()]
     }
     assert not any(t.model_dump_json(exclude={"transaction_id"}) in dataset_features for t in first)
     for bad in (0, DEMO_FEED_MAX + 1):
@@ -76,6 +77,8 @@ def test_demo_feed_over_represents_fraud_for_the_demo():
     feed = create_demo_feed(DEMO_FEED_MAX, seed=1)
     share = sum(bool(t.ground_truth_fraud) for t in feed) / len(feed)
     assert 0.15 < share < 0.6
+    takeovers = [t for t in feed if t.ground_truth_fraud and t.credential_resets_24h and t.days_since_sim_change <= 10]
+    assert takeovers, "the feed should include SIM-swap account-takeover fraud"
 
 
 # ---- scoring -----------------------------------------------------------------

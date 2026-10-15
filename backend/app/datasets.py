@@ -11,13 +11,19 @@ from app.data import (
     CARD_SCENARIO_SIZE,
     DEFAULT_DATASET_SEED,
     DEFAULT_DATASET_SIZE,
+    PAYMENTS_SCENARIO_SEED,
+    PAYMENTS_SCENARIO_SIZE,
     create_card_scenario_dataset,
+    create_payments_scenario_dataset,
     create_synthetic_dataset,
 )
 from app.rules.models import Transaction, ruleable_fields
 
 DEFAULT_DATASET_ID = "synthetic-v1"
 SCENARIO_DATASET_ID = "card-scenario-v2"
+PAYMENTS_DATASET_ID = "payments-scenario-v3"
+# Dataset used by investigations and scheduled ingestion unless a request names another.
+INVESTIGATION_DATASET_ID = PAYMENTS_DATASET_ID
 
 
 class DatasetInfo(BaseModel):
@@ -58,6 +64,23 @@ DATASETS: dict[str, DatasetInfo] = {
             "workflow surfaces a coverage gap; results do not measure real-world detection."
         ),
     ),
+    PAYMENTS_DATASET_ID: DatasetInfo(
+        dataset_id=PAYMENTS_DATASET_ID,
+        version="3.0.0",
+        generator_seed=PAYMENTS_SCENARIO_SEED,
+        size=PAYMENTS_SCENARIO_SIZE,
+        description=(
+            "Synthetic payments scenario (~3.4% fraud) with velocity, decline, card-present, "
+            "time-of-day, device, SIM-change, credential-reset, and new-payee features. Three "
+            "fraud modes: high-value misuse, injected card testing, and injected SIM-swap "
+            "account takeover."
+        ),
+        limitations=(
+            "Fully synthetic. The card-testing and SIM-swap account-takeover patterns were "
+            "injected to demonstrate how the workflow surfaces coverage gaps, and legitimate "
+            "look-alikes were added for each; results do not measure real-world detection."
+        ),
+    ),
 }
 
 
@@ -67,6 +90,8 @@ def _load(dataset_id: str) -> tuple[Transaction, ...]:
         return tuple(create_synthetic_dataset())
     if dataset_id == SCENARIO_DATASET_ID:
         return tuple(create_card_scenario_dataset())
+    if dataset_id == PAYMENTS_DATASET_ID:
+        return tuple(create_payments_scenario_dataset())
     raise KeyError(dataset_id)
 
 
