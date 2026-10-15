@@ -16,7 +16,7 @@ from app.rules.models import Rule, Transaction
 
 router = APIRouter(prefix="/api/v1")
 SYNTHETIC_TRANSACTIONS = get_dataset(DEFAULT_DATASET_ID)[1]
-DatasetId = Literal["synthetic-v1", "card-scenario-v2", "payments-scenario-v3"]
+DatasetId = Literal["synthetic-v1", "card-scenario-v2", "payments-scenario-v3", "sparkov-cards-v1"]
 
 
 class RuleListResponse(BaseModel):

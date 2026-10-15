@@ -69,7 +69,7 @@ class InvestigationRequest(BaseModel):
 
     advisory_id: StrictStr | None = None
     custom_advisory: CustomAdvisoryInput | None = None
-    dataset_id: Literal["synthetic-v1", "card-scenario-v2", "payments-scenario-v3"] = INVESTIGATION_DATASET_ID
+    dataset_id: Literal["synthetic-v1", "card-scenario-v2", "payments-scenario-v3", "sparkov-cards-v1"] = INVESTIGATION_DATASET_ID
     seed: Annotated[int, Field(ge=0, le=2**32 - 1)] = DEFAULT_SPLIT_SEED
 
     @model_validator(mode="after")
