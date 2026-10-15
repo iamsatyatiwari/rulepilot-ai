@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { CreditCard, LoaderCircle, RotateCcw, ShieldAlert, ShieldCheck, Smartphone, Zap } from 'lucide-react'
 import {
   apiRequest,
@@ -8,6 +8,7 @@ import {
   type DemoCard,
   type PaymentRequest,
   type PaymentResult,
+  type Rule,
   type RuleCatalog,
   type SecurityEvent,
 } from './api'
@@ -29,6 +30,17 @@ export function localIso(date: Date) {
   const pad = (value: number) => String(Math.floor(Math.abs(value))).padStart(2, '0')
   const local = new Date(date.getTime() + offset * 60000).toISOString().slice(0, 19)
   return `${local}${sign}${pad(offset / 60)}:${pad(offset % 60)}`
+}
+
+const SIM_FIELDS = ['days_since_sim_change', 'credential_resets_24h', 'new_device', 'new_payee']
+const CARD_TESTING_FIELDS = ['transactions_1h', 'transactions_24h', 'declined_attempts_24h']
+
+/** Which one-click scenario exercises a rule, judged from the fields it checks. */
+function scenarioFor(rule: Rule) {
+  const fields = rule.conditions.map((c) => c.field)
+  if (fields.some((f) => SIM_FIELDS.includes(f))) return 'SIM-swap takeover'
+  if (fields.some((f) => CARD_TESTING_FIELDS.includes(f))) return 'Card-testing attack'
+  return 'a payment that matches it'
 }
 
 const minutesAgo = (minutes: number) => localIso(new Date(Date.now() - minutes * 60000))
@@ -59,6 +71,8 @@ export default function BankView() {
   const [activity, setActivity] = useState<ActivityItem[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const shadowCount = useRef(0)
 
   const loadRules = useCallback(async () => {
     try {
@@ -93,6 +107,7 @@ export default function BankView() {
       [request.card_id]: { history: [...cardState.history, { at, merchant_id: request.merchant_id, amount: request.amount, declined }].slice(-200), events },
     }
     setState(next)
+    if (result.score.shadow_flagged_by.length) shadowCount.current += 1
     setActivity((items) => [{ id: Date.now() + Math.random(), cardId: request.card_id, merchant: merchantName(request.merchant_id), amount: request.amount, at, result }, ...items].slice(0, 60))
     return next
   }
@@ -100,9 +115,18 @@ export default function BankView() {
   const run = async (label: string, action: () => Promise<void>) => {
     setBusy(label)
     setError('')
+    setNotice('')
     try {
-      await loadRules()
+      const latestRules = await apiRequest<RuleCatalog>('/api/v1/rule-catalog').catch(() => null)
+      if (latestRules) setRules(latestRules)
+      const before = shadowCount.current
       await action()
+      const approvedNow = latestRules?.approved_not_active ?? []
+      if (label !== 'normal' && label !== 'pay' && shadowCount.current === before) {
+        setNotice(approvedNow.length
+          ? `None of your approved rules reacted to this attack. ${approvedNow.map((e) => `${e.rule.rule_id} reacts to the ${scenarioFor(e.rule)}`).join('; ')}.`
+          : 'No RulePilot rule is approved yet, so nothing can flag this attack. Approve one in Investigations first.')
+      }
     } catch (runError) {
       setError(safeMessage(runError))
     } finally {
@@ -152,6 +176,7 @@ export default function BankView() {
   })
 
   const reset = () => {
+    setNotice('')
     setState({})
     setActivity([])
     setError('')
@@ -173,7 +198,7 @@ export default function BankView() {
       <section className="panel bank-rules" aria-label="Rules in use">
         <div><span className="catalog-state state-active">Active · decides</span> <strong>RP-BASELINE-001</strong> holds any payment of 1,500 or more.</div>
         {approved.length ? approved.map((entry) => (
-          <div key={entry.rule.rule_id}><span className="catalog-state state-approved">Approved · shadow</span> <strong>{entry.rule.rule_id}</strong><span>{entry.technique ?? entry.rule.name}: would flag when <code>{ruleText(entry.rule)}</code></span></div>
+          <div key={entry.rule.rule_id}><span className="catalog-state state-approved">Approved · shadow</span> <strong>{entry.rule.rule_id}</strong><span>{entry.technique ?? entry.rule.name}: would flag when <code>{ruleText(entry.rule)}</code> · try the <b>{scenarioFor(entry.rule)}</b></span></div>
         )) : <p className="muted-text">No RulePilot rule is approved yet. Approve one in <a href="#investigations">Investigations</a> (or open a recorded run and approve it) to see it catch the attacks below.</p>}
       </section>
 
@@ -225,6 +250,7 @@ export default function BankView() {
         <section className="panel bank-activity" aria-label="Card activity">
           <div className="panel-heading"><div><div className="section-kicker">ACTIVITY · NEWEST FIRST</div><h2>What the bank decided</h2></div></div>
           {error && <div className="inline-error" role="alert"><ShieldAlert size={15} /><span>{error}</span></div>}
+          {notice && <div className="inline-note" role="status"><ShieldAlert size={14} /> {notice}</div>}
           {activity.length === 0 ? <p className="muted-text">No payments yet. Make a payment or run a scenario.</p> : (
             <ul className="activity-list">
               {activity.map((item) => {
@@ -237,7 +263,7 @@ export default function BankView() {
                       <span>{item.merchant}</span>
                       <small>•••• {catalog?.cards.find((c) => c.card_id === item.cardId)?.last4} · {new Date(item.at).toLocaleTimeString()}</small>
                     </div>
-                    {shadow.length > 0 && <div className="shadow-flag"><ShieldAlert size={14} /> RulePilot rule {shadow.join(', ')} would flag this (shadow mode)</div>}
+                    {shadow.length > 0 && <div className="shadow-flag"><ShieldAlert size={14} /> RulePilot rule {shadow.join(', ')} would flag this (shadow mode: approved, not yet active)</div>}
                     <details>
                       <summary>Why?</summary>
                       <p>{item.result.explanation} {item.result.shadow_summary}</p>

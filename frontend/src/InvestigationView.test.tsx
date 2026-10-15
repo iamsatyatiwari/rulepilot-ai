@@ -202,6 +202,14 @@ describe('Intelligence investigations workspace', () => {
     const catalog = screen.getByRole('region', { name: 'Reviewed rule catalog' })
     expect(await within(catalog).findByText('Approved · not active')).toBeInTheDocument()
     expect(within(catalog).getByText(/Approved by analyst-1/)).toBeInTheDocument()
+
+    // A clear confirmation replaces the form, so the decision cannot be submitted twice by accident.
+    const confirmation = await screen.findByText(/runs in/, { selector: '.review-confirmation p' })
+    expect(confirmation).toHaveTextContent('shadow mode')
+    expect(screen.getByRole('link', { name: /test it in the demo bank/i })).toHaveAttribute('href', '#bank')
+    expect(screen.queryByRole('button', { name: /approve for further testing/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /record a different decision/i }))
+    expect(screen.getByRole('button', { name: /approve for further testing/i })).toBeInTheDocument()
   })
 
   it('shows the reviewed rule catalog and a covered-by-existing-rules result', async () => {

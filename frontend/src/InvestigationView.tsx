@@ -109,8 +109,10 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState<ReviewDecision | null>(null)
   const [error, setError] = useState('')
+  const [changing, setChanging] = useState(false)
   const { report, reviews } = item
   const reviewable = report.status === 'pending_human_review' && report.selected_rule
+  const latest = reviews.length ? reviews[reviews.length - 1] : null
 
   const submit = async (decision: ReviewDecision) => {
     if (!reviewer.trim() || !comment.trim()) {
@@ -122,6 +124,7 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
     try {
       await postJson(`/api/v1/investigations/${report.investigation_id}/review`, { decision, reviewer: reviewer.trim(), comment: comment.trim() })
       setComment('')
+      setChanging(false)
       await onReviewed()
     } catch (reviewError) {
       setError(safeMessage(reviewError))
@@ -143,7 +146,22 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
           ))}
         </ul>
       )}
-      {reviewable ? (
+      {reviewable && latest && !changing && (
+        <div className={`review-confirmation confirmation-${latest.decision}`} role="status">
+          {latest.decision === 'approve' ? <BadgeCheck size={20} /> : <CircleAlert size={20} />}
+          <div>
+            <strong>{latest.decision === 'approve' ? `Approved by ${latest.reviewer}` : `${DECISION_LABEL[latest.decision]} by ${latest.reviewer}`} · {new Date(latest.decided_at).toLocaleString()}</strong>
+            {latest.decision === 'approve'
+              ? <p>Rule <b>{latest.rule_id}</b> is now in the reviewed catalog and runs in <b>shadow mode</b>: the Demo bank and Transaction monitor show every payment it would block. It does not change real decisions until a separate activation decision.</p>
+              : <p>Rule <b>{latest.rule_id}</b> is not in the reviewed catalog and is not used in the bank.</p>}
+            <div className="review-actions">
+              {latest.decision === 'approve' && <a className="primary-button" href="#bank">Test it in the Demo bank <ArrowRight size={14} /></a>}
+              <button className="secondary-button" onClick={() => setChanging(true)}>Record a different decision</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {reviewable && (!latest || changing) ? (
         <div className="review-form">
           <label>Reviewer<input value={reviewer} onChange={(event) => setReviewer(event.target.value)} maxLength={100} placeholder="e.g. fraud-strategy analyst" /></label>
           <label>Comment<textarea value={comment} onChange={(event) => setComment(event.target.value)} maxLength={1000} rows={3} placeholder="Reason for the decision and any follow-up testing required" /></label>
@@ -154,9 +172,9 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
             <button className="secondary-button danger" onClick={() => void submit('reject')} disabled={submitting !== null}><X size={14} /> Reject</button>
           </div>
         </div>
-      ) : (
+      ) : !reviewable ? (
         <div className="review-limitation"><CircleSlash size={17} /><div><strong>No candidate awaits review</strong><p>This investigation did not produce a held-out-tested candidate, so there is nothing to approve.</p></div></div>
-      )}
+      ) : null}
     </article>
   )
 }
@@ -186,7 +204,8 @@ function RuleCatalogPanel({ catalog }: { catalog: RuleCatalog | null }) {
   )
 }
 
-function Summary({ report }: { report: InvestigationReport }) {
+function Summary({ report, reviews }: { report: InvestigationReport; reviews: StoredInvestigation['reviews'] }) {
+  const latest = reviews.length ? reviews[reviews.length - 1] : null
   const { findings, coverage, holdout_delta: delta, selected_rule: rule } = report
   const verified = report.evidence_quotes.filter((quote) => quote.verified).length
   return (
@@ -197,7 +216,7 @@ function Summary({ report }: { report: InvestigationReport }) {
         <li><strong>Can our data test it?</strong><span>{coverage ? (coverage.status === 'not_testable' ? `No. The data has none of the fields it needs (${coverage.missing_fields.join(', ')}), so no rule was invented.` : coverage.status === 'partially_testable' ? `Partly. Available: ${coverage.available_fields.join(', ')}. Missing: ${coverage.missing_fields.join(', ')}.` : `Yes. All needed fields exist: ${coverage.available_fields.join(', ')}.`) : 'Unknown.'}</span></li>
         <li><strong>Proposed rule</strong><span>{rule ? <><code>{ruleText(rule)}</code> — chosen from {report.candidates.length} candidate(s) tested on validation data.</> : report.status === 'covered_by_existing_rules' ? 'None needed: the existing rules already cover this technique.' : 'None.'}</span></li>
         {delta && <li><strong>Result on unseen test data</strong><span>Adding it to the current rules catches <b>{formatDelta(delta.recall_change)}</b> more fraud ({delta.fraud_newly_detected >= 0 ? '+' : ''}{formatCount(delta.fraud_newly_detected)} cases) with a false-alarm change of <b>{formatDelta(delta.false_positive_rate_change, 2)}</b> ({delta.alert_change >= 0 ? '+' : ''}{formatCount(delta.alert_change)} alerts).</span></li>}
-        <li><strong>Your decision</strong><span>{report.status === 'pending_human_review' ? 'Approve, request changes, or reject below. Approval never switches the rule on.' : 'Nothing to approve for this run.'}</span></li>
+        <li><strong>Your decision</strong><span>{latest ? `${DECISION_LABEL[latest.decision]} by ${latest.reviewer}.${latest.decision === 'approve' ? ' The rule now runs in shadow mode in the Demo bank.' : ''}` : report.status === 'pending_human_review' ? 'Approve, request changes, or reject below. Approval never switches the rule on.' : 'Nothing to approve for this run.'}</span></li>
       </ol>
     </section>
   )
@@ -224,7 +243,7 @@ function Report({ item, onReviewed }: { item: StoredInvestigation; onReviewed: (
         </div>
       </section>
 
-      <Summary report={report} />
+      <Summary report={report} reviews={item.reviews} />
       <ReviewPanel item={item} onReviewed={onReviewed} />
       <details className="audit-details">
         <summary>Evidence and audit trail <small>pipeline · source quotes · findings · coverage · candidates · held-out test · agent trace · guardrails · limitations</small></summary>

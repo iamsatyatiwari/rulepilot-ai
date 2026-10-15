@@ -637,3 +637,10 @@ details.catalog-panel[open] { padding: 0 0 12px; }
   .guide-steps, .bank-cards, .bank-grid { grid-template-columns: 1fr; }
   .summary-list li { grid-template-columns: 1fr; gap: 4px; }
 }
+
+.review-confirmation { display: flex; gap: 12px; margin-top: 14px; padding: 14px; border-radius: 9px; font-size: 13px; line-height: 1.55; }
+.review-confirmation p { margin: 6px 0 10px; }
+.confirmation-approve { color: #1d4f3a; background: #e6f4ec; border: 1px solid #b9dfc9; }
+.confirmation-approve svg { flex: none; color: var(--green); }
+.confirmation-reject, .confirmation-request_changes { color: #6b4a12; background: #fbf1df; border: 1px solid #efd7a8; }
+.review-confirmation .primary-button { text-decoration: none; }

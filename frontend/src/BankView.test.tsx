@@ -70,7 +70,7 @@ describe('Demo bank', () => {
     const activity = screen.getByRole('region', { name: 'Card activity' })
     const paymentCalls = () => fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/api/v1/bank/payments'))
     await waitFor(() => expect(paymentCalls()).toHaveLength(8), { timeout: 4000 })
-    await waitFor(() => expect(within(activity).getAllByText(/would flag this \(shadow mode\)/)).toHaveLength(3))
+    await waitFor(() => expect(within(activity).getAllByText(/would flag this \(shadow mode/)).toHaveLength(3))
     const payments = paymentCalls()
     const bodies = payments.map(([, init]) => JSON.parse(String(init?.body)))
     expect(bodies.map((body) => body.history.length)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
@@ -86,6 +86,13 @@ describe('Demo bank', () => {
     const body = JSON.parse(String(fetchMock.mock.calls.find(([input]) => String(input).endsWith('/api/v1/bank/payments'))?.[1]?.body))
     expect(body).toMatchObject({ card_id: 'card-chen', merchant_id: 'm-transfer', amount: 1240, new_device: true })
     expect(body.security_events.map((event: { type: string }) => event.type)).toEqual(['sim_change', 'credential_reset', 'new_device_login'])
+  })
+
+  it('explains when no approved rule covers the attack that was run', async () => {
+    render(<App />)
+    expect(await screen.findByText(/try the/)).toHaveTextContent('Card-testing attack')
+    fireEvent.click(await screen.findByRole('button', { name: /sim-swap takeover/i }))
+    expect(await screen.findByText(/None of your approved rules reacted to this attack/)).toHaveTextContent('AGT-a48565d1-1 reacts to the Card-testing attack')
   })
 
   it('formats local timestamps with the UTC offset', () => {
