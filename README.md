@@ -22,6 +22,7 @@ advisory → structured findings → coverage-gap check → candidate rules
 | **Card testing** advisory | The agent finds that the baseline (amount ≥ 1,500) misses small card-not-present bursts. It proposes up to three rules, checks them on the validation split, and the orchestrator tests the chosen rule **once** on the held-out split. Recorded live run: held-out recall **+5.4 pp**. |
 | **SIM swap** advisory (FBI IC3) | On `payments-scenario-v3`, the SIM-change, device, credential-reset and payee fields make the advisory testable. Recorded run: a rule on a recent SIM change adds **+10.8 pp** recall. On `card-scenario-v2`, which has none of these fields, the run ends with **not testable** and no rule is invented. |
 | Re-run after approval | Approved rules join the reference rule set and the agent reads earlier review decisions. If the behaviour is already covered, the result is **covered by existing rules**. This is governed learning; the model is never retrained. |
+| **Demo bank** | Pay with fictional cards or press *Card-testing attack* / *SIM-swap takeover*. The bank's live decision uses the active rule; the rule you approved shows in red where it *would* block the attack. |
 | Transaction monitor | A mock bank feed scores fresh synthetic transactions. Active rules make the decision. Approved rules run in **shadow mode**: they show what they *would* catch but never change the decision. |
 | Scheduled ingestion | A token-protected endpoint lets Cloud Scheduler investigate new or changed advisories automatically. |
 
@@ -68,6 +69,7 @@ One Cloud Run service built from the root `Dockerfile` serves both the API and t
 | --- | --- | --- | --- |
 | `synthetic-v1` | 120 | 41% | Small fixture for the rule-engine view |
 | `card-scenario-v2` | 6,000 | 3.2% | High-value misuse and an **injected** card-testing pattern, 7 fields |
+| `sparkov-cards-v1` | 74,740 | 2.2% | Generated with the independent, MIT-licensed [Sparkov simulator](https://github.com/namebrandon/Sparkov_Data_Generation); fraud bursts on compromised cards that we did not design. Only derived numeric features kept. Provenance in `backend/app/data_files/NOTICE.md`. |
 | `payments-scenario-v3` (default) | 30,000 | 3.3% | Adds an **injected** SIM-swap account-takeover pattern and 5 fields: `hour_of_day`, `new_device`, `days_since_sim_change`, `credential_resets_24h`, `new_payee`. Legitimate look-alikes exist for every fraud mode. The held-out split contains 202 fraud records. |
 
 The patterns are injected on purpose, so the workflow can show what a detected coverage gap looks like. They are disclosed everywhere they appear.
@@ -90,7 +92,7 @@ npm ci
 npm run dev                     # http://localhost:5173
 ```
 
-Without a key, the dashboard still shows the recorded live runs, and live investigations are disabled. Interactive API docs are at `http://127.0.0.1:8000/docs`.
+Open the app on **Start here**: four guided steps. The full walkthrough of every page is in [agentic/ui-guide.md](agentic/ui-guide.md) section 1. Without a key, the dashboard still shows the recorded live runs, and live investigations are disabled. Interactive API docs are at `http://127.0.0.1:8000/docs`.
 
 To run with Docker, as on Cloud Run:
 
@@ -102,8 +104,8 @@ docker run -p 8080:8080 -e GOOGLE_API_KEY=... rulepilot-ai   # http://localhost:
 ## Checks
 
 ```bash
-cd backend && .venv/bin/python -m pytest -q          # 112 tests, no Gemini calls
-cd frontend && npm test && npx tsc -b && npm run build   # 14 tests
+cd backend && .venv/bin/python -m pytest -q          # 123 tests, no Gemini calls
+cd frontend && npm test && npx tsc -b && npm run build   # 18 tests
 cd backend && .venv/bin/python scripts/golden_eval.py    # live golden set (needs a key)
 cd backend && .venv/bin/python scripts/smoke_check.py http://127.0.0.1:8000
 ```

@@ -1,31 +1,69 @@
 # UI guide — components and how to use them
 
-The dashboard has three views, selected in the left sidebar:
+The dashboard has five views, selected in the left sidebar:
 
 | View | URL hash | Purpose |
 | --- | --- | --- |
-| **Investigations** (default) | `#investigations` | Run the Gemini agent on an advisory and review the result |
-| **Transaction monitor** | `#monitor` | Mock bank feed scored by the engine; approved rules run in shadow mode |
-| **Rule engine** | `#engine` | Baseline threshold discovery on the original v1 fixture (M2B) |
+| **Start here** (default) | `#guide` | Four-step guided demo with buttons to each page |
+| **Investigations** | `#investigations` | Run the Gemini agent on an advisory, read the plain-language summary, approve or reject |
+| **Demo bank** | `#bank` | Pay with fictional cards or run attack scenarios; see the active decision and what approved rules would do |
+| **Transaction monitor** (Advanced) | `#monitor` | Batch mock bank feed scored by the engine; approved rules run in shadow mode |
+| **Rule engine** (Advanced) | `#engine` | Baseline threshold discovery on the original v1 fixture (M2B) |
 
-Source files: `frontend/src/App.tsx` (shell), `InvestigationView.tsx`, `MonitorView.tsx`, `RuleEngineView.tsx`, `components.tsx` (shared), `api.ts` (typed client), `styles.css`.
+Source files: `frontend/src/App.tsx` (shell), `GuideView.tsx`, `InvestigationView.tsx`, `BankView.tsx`, `MonitorView.tsx`, `RuleEngineView.tsx`, `components.tsx` (shared), `api.ts` (typed client), `styles.css`.
 
 ---
 
-## 1. Quick start: a 2-minute demo
+## 1. Step-by-step: using everything in the UI (about 10 minutes)
 
-1. Open the dashboard. The top bar should say **API connected** and the agent chip **gemini-3.8-flash · ready**.
-2. Under **Curated advisories**, click **Investigate** on *Preventing Card Testing*. Wait 20–90 s.
-3. Read the dark **result banner**: it states the measured held-out change.
-4. Walk down the report: **Pipeline → Source & quotes → Findings → Coverage → Candidates → Held-out test → Agent trace → Guardrails**.
-5. In **Human review**, enter your name and a comment, then click **Approve for further testing**. The decision appears in the review history with *activation: not activated*.
-6. Click **Investigate** on the *SIM Swap* advisory. The banner reports **Not testable with available data** and no rule is proposed — the system does not invent a link.
-7. Use the **History** strip to switch between runs.
-8. **Learning loop:** after approving in step 5, the **Reviewed rule catalog** lists the rule as *Approved · not active*. Investigate the card-testing advisory again: the banner reports **Covered by existing rules** because the approved rule is now part of the rule set.
+**Before you start:** the top bar says **API connected**. On Investigations, the agent chip reads *model · ready*. If it says *not configured*, live runs are disabled, but every step below still works with the recorded runs.
 
-9. **Shadow scoring:** open **Transaction monitor** and click **Stream 20 transactions**. Rows marked *Caught only by approved rule* are synthetic fraud the baseline allowed but the approved rule would flag. The decision never changes, because approval does not activate a rule.
+**Step 1: investigate an advisory.**
+1. Open **Investigations**.
+2. Leave **Test against data** on *Payments scenario v3*.
+3. Press **Investigate** on *Preventing Card Testing*. A progress card counts the seconds; a run takes 20–90 s.
+4. No key or no quota? Click the *Preventing Card Testing … recorded* chip in **History** instead.
 
-If Gemini is busy or not configured, open the **recorded** runs in History; they are real earlier runs.
+**Step 2: read the result.**
+1. The dark **banner** gives the outcome in one sentence.
+2. **In plain words** explains, in this order:
+   - what the advisory says, and how many quotes were found word-for-word in the source;
+   - whether our data can test it;
+   - the proposed rule, for example `transactions 1h ≥ 5 AND amount < 5`;
+   - how much more fraud it catches on unseen test data, and the cost in false alarms;
+   - what you need to decide.
+3. For the full audit, open **Evidence and audit trail**. It holds the pipeline, source and quotes, findings, coverage, the candidate table, the held-out test, the agent trace, guardrails, and limitations.
+
+**Step 3: approve.**
+1. In **Human review**, type your name and a reason, for example "Shadow test first; keep FPR under 1%".
+2. Press **Approve for further testing**.
+3. The banner changes to *Approved for further testing*. The **Reviewed rule catalog** now lists the rule as *approved (shadow)*. It is **not** switched on.
+
+**Step 4: see it work in the Demo bank.**
+1. Open **Demo bank**. The top panel shows the active rule (amount ≥ 1,500) and your approved rule in shadow mode.
+2. Press **Card-testing attack**. Eight tiny gift-card payments run on Ben's card, half with a wrong CVV.
+   - Watch **What the bank decided**: the bank approves the tiny payments, and wrong-CVV ones are *Declined by issuer*.
+   - From about the sixth attempt, a red line reads **RulePilot rule … would flag this (shadow mode)**.
+3. Press **Why?** on any payment to see the features the engine used: payments in the last hour, declines, online or in store, new payee, new device, SIM change, and credential resets.
+4. Press **Normal day**. Asha's groceries, fuel, and book are all approved, and nothing is flagged.
+5. Make your own payment: choose a card, a merchant, and an amount, then press **Pay**.
+   - *MegaTech Electronics* at 1,899 is **Held for review** by the active rule.
+   - Tick *Wrong security code* to see an issuer decline.
+
+**Step 5: see the learning loop.**
+1. Back in **Investigations**, press **Investigate** on *Preventing Card Testing* again.
+2. The banner now says **Covered by existing rules**, compared against 2 reviewed rules and 1 prior review. The agent read your approval and proposes nothing new.
+
+**Step 6: a second technique, and honesty.**
+1. Investigate the *SIM Swap* advisory on *Payments scenario v3*. It is testable and proposes a rule such as `days since sim change ≤ 1`. Approve it.
+2. In the **Demo bank**, press **SIM-swap takeover**. Chen's transfer of 1,240 is below the old 1,500 limit, so the bank approves it, but the approved SIM-swap rule would flag it.
+3. Switch **Test against data** to *Card scenario v2* or *Sparkov cards v1*, and investigate *SIM Swap* again. The banner says **Not testable with available data**, and no rule is invented.
+
+**Step 7 (optional): batch view.** Under **Advanced → Transaction monitor**, press **Stream 20 transactions**. Rows marked *Caught only by approved rule* are fraud the active rule allowed.
+
+**Resetting:**
+- **Reset demo** in the bank clears card activity, which is kept only in your browser.
+- To remove an approved rule, record **Reject** on its investigation.
 
 ---
 
@@ -33,7 +71,7 @@ If Gemini is busy or not configured, open the **recorded** runs in History; they
 
 | Component | What it shows | How to use |
 | --- | --- | --- |
-| Sidebar | Brand, workspace, navigation, platform principles | Click **Investigations** or **Rule engine**. On phones, open with the ☰ button. |
+| Sidebar | **Demo**: Start here, Investigations, Demo bank. **Advanced**: Transaction monitor, Rule engine. Platform principles. | Click a page. On phones, open the menu with the ☰ button. |
 | Top bar breadcrumb | Current view | — |
 | API status pill | `Checking API` / `API connected` / `API unavailable` from `GET /health` | If unavailable, start the backend (see `skills.md` skill 1). |
 | Footer | Synthetic-data disclaimer | — |
@@ -92,6 +130,8 @@ Buttons for the 8 most recent investigations. The coloured dot is the status (am
 
 ### 3.5 Report
 
+The report opens with the **banner**, the **In plain words** summary (`Summary`), and **Human review**. Every section in the table below except the banner and Human review sits inside the collapsible **Evidence and audit trail**. A **Test against data** picker above the advisory cards chooses `payments-scenario-v3` (the default), `sparkov-cards-v1`, or `card-scenario-v2`.
+
 | Section | What it shows | How to read it |
 | --- | --- | --- |
 | **Result banner** | Status pill, deterministic headline, advisory, dataset version, seed, number of reviewed rules compared against, prior reviews available, Live/Recorded badge, time, model, model-call count | The headline is written by code, not by the model. Statuses: pending human review, covered by existing rules, not testable, insufficient evidence, agent incomplete. |
@@ -117,6 +157,18 @@ Buttons for the 8 most recent investigations. The coloured dot is the status (am
 The form appears only when the status is *Pending human review*. Multiple decisions are kept in order.
 
 ---
+
+## 4b. Demo bank (`BankView.tsx`)
+
+| Part | What it shows | How to use |
+| --- | --- | --- |
+| Rules in use | The active rule (decides) and every approved rule (shadow), written as one plain line | Approve rules in Investigations to fill it |
+| Demo cards | Asha (everyday), Ben (online shopper), Chen (premium; SIM-swap target) | Click a card to select it |
+| Make a payment | Merchant, amount, *Wrong security code*, *Paying from a new device*, **Pay** | Calls `POST /api/v1/bank/payments` with the card's recent activity |
+| One-click scenarios | **Card-testing attack**, **SIM-swap takeover**, **Normal day** | Each sends real payments in sequence |
+| What the bank decided | Outcome badge (Approved / Held for review / Declined by issuer), a red shadow line when an approved rule would flag, and **Why?** with the derived features | Newest first; **Reset demo** clears it |
+
+The server is stateless. The browser keeps each card's history and security events (SIM change, credential reset, new-device login) and sends them with every payment; timestamps carry the browser's UTC offset so `hour_of_day` is the customer's local hour.
 
 ## 4a. Transaction monitor (`MonitorView.tsx`)
 
@@ -152,6 +204,7 @@ Baseline reference from M2A/M2B on the 120-row `synthetic-v1` fixture.
 | --- | --- |
 | `MetricColumn` | Alerts, precision, recall, FPR, confusion matrix, evaluated count for one rule or rule set |
 | `CandidateConditions` | AND/OR and each `field operator value` row |
+| `ruleText` | A rule as one readable line (`transactions 1h ≥ 5 AND amount < 5`) |
 | `formatPercent`, `formatDelta`, `formatCount` | Safe formatting; missing values render as `—`, never `NaN` |
 | `safeMessage` | Maps API errors to user-safe text |
 
@@ -168,4 +221,4 @@ Baseline reference from M2A/M2B on the 120-row `synthetic-v1` fixture.
 
 - Add API types to `api.ts` first; components consume only typed responses.
 - Long-running calls pass `INVESTIGATION_TIMEOUT_MS` (180 s); everything else uses 10 s.
-- Tests: `src/App.test.tsx` (rule engine, uses `#engine`) and `src/InvestigationView.test.tsx` (investigation flow). Mock `fetch` by URL suffix.
+- Tests: `src/App.test.tsx` (rule engine, `#engine`), `src/InvestigationView.test.tsx` (`#investigations`), `src/MonitorView.test.tsx` (`#monitor`), `src/BankView.test.tsx` (`#bank` and the Start here page). Mock `fetch` by URL suffix. Without a hash the app opens Start here.

@@ -192,10 +192,37 @@ PAYMENTS DATASET V3 AND GOLDEN-SET EVALUATION (2026-10-14)
     is kept; the v2 card-testing recordings were removed.
 
 
+SPARKOV DATA, DEMO BANK, SIMPLER UI (2026-10-15)
+-------------------------------------------------
+  * sparkov-cards-v1: 74,740 card transactions (1,620 fraud, 2.17%) from
+    the independent Sparkov generator (MIT, commit b5eb45c; 200 customers,
+    Jan-Jun 2025), converted by scripts/build_sparkov_dataset.py. Only
+    derived numeric features kept (amount, hour, card present, distance,
+    1h/24h velocity, new payee); fake PII dropped. Versioned gzip file with
+    a SHA-256 check and app/data_files/NOTICE.md. On validation the baseline
+    catches 0% of this fraud; the best single learned threshold (amount >
+    225) reaches 72% recall at 4.2% FPR. SIM swap is not_testable here
+    (golden case sim-swap-sparkov-v1).
+  * Demo bank: app/bank.py + bank_api.py (GET /bank/catalog, POST
+    /bank/payments). Stateless: the browser sends each card's history and
+    security events; the server derives features and scores with the
+    baseline active and approved rules in shadow. BankView.tsx with three
+    fictional cards, payment form, and card-testing / SIM-swap / normal-day
+    scenarios.
+  * UI: Start here guide (default page), investigation summary + review
+    first with the audit trail folded, dataset picker, collapsible catalog,
+    Advanced nav group. ui-guide.md section 1 is a step-by-step walkthrough.
+  * Local end-to-end (production build, recorded v3 rules approved): the
+    card-testing attack is flagged in shadow from the 6th attempt; the SIM-
+    swap transfer (1,240) is approved by the bank and flagged in shadow;
+    normal day unflagged; 1,899 held by the baseline. Live Gemini run on
+    sparkov-cards-v1 passed all guardrails.
+
+
 VERIFICATION RESULTS (2026-10-14)
 ---------------------------------
-  * Backend: 112 pytest tests passed (96 before v3, 82 at M4, 36 at M2B).
-  * Frontend: 14 Vitest tests passed (10 at M4, 5 at M2B); tsc and Vite
+  * Backend: 123 pytest tests passed (112 before 15 Oct afternoon) (96 before v3, 82 at M4, 36 at M2B).
+  * Frontend: 18 Vitest tests passed (14 before) (10 at M4, 5 at M2B); tsc and Vite
     build passed.
   * Production-mode run (FastAPI serving the built dashboard) and the
     Firestore emulator: backend/scripts/smoke_check.py passes; state survives
