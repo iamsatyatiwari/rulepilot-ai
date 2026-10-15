@@ -17,7 +17,10 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StrictStr, model_val
 from app.agent.orchestrator import InvestigationReport, run_investigation
 from app.config import Settings, get_settings
 from app.data import DEFAULT_SPLIT_SEED
+from app.customer_reports import ReportsSummary
+from app.customer_reports import summarize as summarize_reports
 from app.datasets import INVESTIGATION_DATASET_ID
+from app.rule_lab import case_store, run_cases
 from app.governance import (
     AuditEvent,
     CatalogEntry,
@@ -208,6 +211,65 @@ class IngestionResult(BaseModel):
     investigated: list[InvestigationSummary]
     already_investigated: list[str]
     remaining: list[str]
+    customer_reports: ReportsSummary | None = None
+
+
+def _reports_state(store: GovernanceStore):
+    reports = case_store(store.backend).list("customer_report")
+    investigated = {advisory_id for advisory_id, _ in store.investigated_sources()}
+    return summarize_reports(reports, [BASELINE_RULE, *store.approved_rules()], investigated)
+
+
+async def _investigate_customer_reports(store: GovernanceStore, settings: Settings, origin: str) -> InvestigationReport | None:
+    """Investigate the digest of reported frauds the active rules missed, if there are enough new ones."""
+    summary, missed, advisory = _reports_state(store)
+    if advisory is None or not summary.ready_to_investigate:
+        return None
+    async with _run_slots:
+        report = await run_investigation(
+            advisory,
+            INVESTIGATION_DATASET_ID,
+            DEFAULT_SPLIT_SEED,
+            settings,
+            approved_rules=store.approved_rules(),
+            review_history=store.review_history(),
+        )
+    check = None
+    if report.selected_rule is not None:
+        result = run_cases(report.selected_rule, missed)
+        check = {"reported_cases": result.fraud_cases, "caught_by_proposed_rule": result.fraud_caught}
+    report = report.model_copy(update={"origin": origin, "customer_report_check": check})
+    store.add(report)
+    return report
+
+
+@router.get("/customer-reports/summary", response_model=ReportsSummary, tags=["intelligence"])
+def customer_reports_summary(store: GovernanceStore = Depends(get_store)) -> ReportsSummary:
+    """How many customer-reported frauds the active rules miss, and the digest the agent would read."""
+    return _reports_state(store)[0]
+
+
+@router.post("/customer-reports/investigate", response_model=StoredInvestigation, tags=["intelligence"])
+async def investigate_customer_reports(
+    settings: Settings = Depends(get_settings), store: GovernanceStore = Depends(get_store)
+) -> StoredInvestigation:
+    """Run the agent now on reported frauds the active rules missed (the scheduled job does the same)."""
+    if not settings.gemini_configured:
+        raise HTTPException(status_code=503, detail="Gemini is not configured on the server")
+    summary = _reports_state(store)[0]
+    if not summary.ready_to_investigate:
+        raise HTTPException(status_code=409, detail=(
+            f"need at least {summary.min_missed_reports} new reported frauds missed by the active rules "
+            f"(now {summary.missed_by_active_rules}, already investigated: {summary.digest_advisory_id is not None and not summary.ready_to_investigate})"
+        ))
+    if _run_slots.locked():
+        raise HTTPException(status_code=429, detail="an investigation is already running; try again shortly")
+    report = await _investigate_customer_reports(store, settings, "live")
+    if report is None:
+        raise HTTPException(status_code=409, detail="nothing new to investigate")
+    stored = store.get(report.investigation_id)
+    assert stored is not None
+    return stored
 
 
 @router.post("/ingestion/run", response_model=IngestionResult, tags=["intelligence"])
@@ -249,9 +311,15 @@ async def run_ingestion(
             )
         store.add(report.model_copy(update={"origin": "scheduled"}))
         investigated.extend(s for s in store.list() if s.investigation_id == report.investigation_id)
+    # Then customer fraud reports, if this call has not used its investigation yet.
+    if not investigated and not _run_slots.locked():
+        report = await _investigate_customer_reports(store, settings, "scheduled")
+        if report is not None:
+            investigated.extend(s for s in store.list() if s.investigation_id == report.investigation_id)
     processed = {s.advisory_id for s in investigated}
     return IngestionResult(
         investigated=investigated,
         already_investigated=already,
         remaining=[a.advisory_id for a in pending if a.advisory_id not in processed],
+        customer_reports=_reports_state(store)[0],
     )
