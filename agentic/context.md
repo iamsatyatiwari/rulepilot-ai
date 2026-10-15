@@ -38,7 +38,7 @@ First vertical slice: payment-card fraud. Account takeover, scams, and AML are f
 | M3 T0–T7 agent, tools, advisories, governance API, investigation UI, local live E2E | Done |
 | M3 T8 Cloud Run deployment | Dockerfile ready; needs GCP project |
 | M4 continuous learning: reviewed rule catalog, review-history tool, Firestore storage | Done (L1–L3), verified live |
-| T9 README, deck, 3-minute video | Not started |
+| T9 README, deck, 3-minute video | README rewritten (15 Oct); deck and video not started |
 | Shadow scoring (mock bank feed) and scheduled ingestion endpoint | Done locally, not yet deployed |
 | `payments-scenario-v3` dataset (30k rows, 12 fields) and golden-set evaluation (L4) | Done locally; live golden run passes on v3 |
 
