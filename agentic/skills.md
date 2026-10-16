@@ -70,6 +70,7 @@ Expect 20–90 s. `status` should be `pending_human_review` for card testing and
 4. Document injected patterns in `limitations`.
 5. Keep older generators byte-identical (draw new fields after the shared row) so recorded runs stay reproducible.
 6. Judge the data design on training/validation splits only, then run the golden set (skill 7).
+7. External generator data (e.g. Sparkov): run the generator in an isolated venv outside the repo, convert with a script under `backend/scripts/`, keep only derived numeric features (no PII), version the output in `backend/app/data_files/` with a SHA-256 check and a provenance/licence `NOTICE.md`.
 
 ## 7. Change the prompt or model
 
@@ -141,3 +142,24 @@ gcloud scheduler jobs run rulepilot-ingest --location asia-southeast1   # trigge
 | Time limit reached | All models busy | Raise timeout or retry |
 | Status `agent_incomplete`, no errors | Model never called `submit_findings` | Check trace; tighten prompt |
 | Guardrail "Evidence quotes verified" failed | Model paraphrased quotes | Expected occasionally; it is shown to reviewers |
+
+## 13. Demonstrate the demo bank
+
+1. Approve a card-testing candidate (skill 10, step 2) and, optionally, a SIM-swap candidate on `payments-scenario-v3`.
+2. Open **Demo bank** (`#bank`). The rules panel lists the active rule and the approved rules (shadow).
+3. **Card-testing attack:** from about the 6th tiny payment the red shadow line names the approved rule; the bank decision stays *Approved* or *Declined by issuer*.
+4. **SIM-swap takeover:** the 1,240 transfer is approved by the bank (below 1,500) and flagged by the approved SIM-swap rule in shadow.
+5. **Normal day:** nothing flagged. A 1,899 *MegaTech Electronics* payment is *Held for review* by the active rule.
+
+The step-by-step walkthrough for every page is in [ui-guide.md](ui-guide.md) section 1.
+
+## 14. Run the scheduled job locally (public alerts and customer reports)
+
+1. Put `RULEPILOT_INGEST_TOKEN=<any-local-secret>` in `backend/.env` and restart the backend.
+2. Simulate one Cloud Scheduler tick:
+   ```bash
+   curl -X POST http://127.0.0.1:8000/api/v1/ingestion/run -H "X-RulePilot-Ingest-Token: <any-local-secret>"
+   ```
+   It refreshes the FBI IC3 feed, then investigates one item: a new curated or fetched advisory, otherwise the digest of 3+ customer-reported frauds the active rules missed. The response lists what was fetched and investigated.
+3. Without the token, use **Check for new public alerts** (Investigations) and **Investigate reports now** (Demo bank).
+4. On this Mac, Python needs `certifi` for HTTPS (the python.org build has no system CA bundle); the fetcher already uses it.

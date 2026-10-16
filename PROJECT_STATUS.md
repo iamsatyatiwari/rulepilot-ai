@@ -37,6 +37,7 @@ Judging weights: Technical merit & GenAI 40% · Problem alignment & impact 25% �
 | M3 Intelligence agent | Gemini + ADK agent, tools, advisories, governance API, investigations UI, Dockerfile | `00e421c` |
 | M4 Continuous learning | Reviewed rule catalog, review-history tool, "covered by existing rules", Firestore storage | `2f05c23` |
 | Shadow scoring + ingestion (PR #1) | Mock bank feed, `/transactions/score` and `/transactions/simulate`, Transaction monitor, `/ingestion/run` for Cloud Scheduler, per-request model timeout | `7623795`, `a7016c4` |
+| Sparkov data, demo bank, simpler UI | `sparkov-cards-v1`, Demo bank page and API, Start here guide, summary-first investigations | `49f301b`, `18f41c1` |
 | Dataset v3 + golden set (PR #2) | `payments-scenario-v3`, 5 new fields, SIM-swap takeover pattern, golden-set evaluation, recorded runs refreshed on v3 | `fcd378d`, `28d3ea5` |
 
 ### Capabilities working today
@@ -53,15 +54,15 @@ Judging weights: Technical merit & GenAI 40% · Problem alignment & impact 25% �
 | **Shadow scoring** | The mock bank feed (~40% fraud, for demo purposes) is scored by active rules; approved rules run in shadow and never change the decision. |
 | **Scheduled ingestion** | Token-protected `/ingestion/run`. At most one new or changed advisory per call. |
 | **Golden set** | 4 cases (advisory × dataset): `app/golden.py`, `scripts/golden_eval.py`. The recorded runs pass their cases offline. |
-| **UI** | Investigations workspace, Transaction monitor (with a SIM-swap preset), rule-engine view. |
+| **UI** | Start here guide, Investigations (summary first, audit folded), **Demo bank** (fictional cards, attack scenarios, shadow verdicts), Transaction monitor, Rule engine. |
 | **Demo resilience** | 4 recorded real runs are shown when Gemini is unavailable. |
 
 ### Verified results (latest)
 
 | Check | Result |
 | --- | --- |
-| Backend tests | **112 passed**, with no Gemini calls |
-| Frontend tests | **14 passed**; type check and production build pass |
+| Backend tests | **123 passed**, with no Gemini calls |
+| Frontend tests | **18 passed**; type check and production build pass |
 | Production-mode smoke check | **29/29** (`scripts/smoke_check.py --review`) |
 | Firestore emulator, Docker build, headless Chrome | Pass (14 Oct) |
 | Live golden set on v3 | `card-testing-payments-v3` and `sim-swap-payments-v3` **PASS** |
@@ -80,7 +81,7 @@ All metrics come from synthetic data and are not real-world detection rates. Eve
 
 | # | Task | Owner | Effort | Depends on |
 | --- | --- | --- | --- | --- |
-| 1 | Merge PR #2 and the README/status PR | User | 5 min | — |
+| 1 | Merge the Sparkov / demo bank / UI PR | User | 5 min | — |
 | 2 | Rotate the Gemini key (it was shared in chat); **enable billing** on its project | User | 10 min | — |
 | 3 | Provide a GCP project ID with billing and a region (suggest `asia-southeast1`). Install `gcloud` (`brew install --cask google-cloud-sdk`) or use Cloud Shell. | User | 15 min | — |
 | 4 | **Deploy to Cloud Run**: Secret Manager, Firestore, deploy, smoke test, one live investigation, Cloud Scheduler job | Claude + user | 1–2 h | 2, 3 |

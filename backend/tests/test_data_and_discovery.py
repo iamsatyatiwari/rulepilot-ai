@@ -159,3 +159,40 @@ def test_older_datasets_are_unchanged_by_the_new_fields():
     rows = create_card_scenario_dataset()
     assert len(rows) == 6000 and sum(bool(row.ground_truth_fraud) for row in rows) == 191
     assert all(row.days_since_sim_change is None and row.new_device is None for row in rows)
+
+
+def test_sparkov_dataset_is_hash_checked_and_holds_only_numeric_features():
+    import gzip
+
+    from app.datasets import SPARKOV_DATASET_ID, SPARKOV_FILE, get_dataset, populated_fields
+
+    info, records = get_dataset(SPARKOV_DATASET_ID)
+    assert info.size == len(records) == 74740
+    assert sum(bool(row.ground_truth_fraud) for row in records) == 1620
+    assert populated_fields(records) == [
+        "amount", "card_present", "distance_from_home_km", "hour_of_day",
+        "new_payee", "transactions_1h", "transactions_24h",
+    ]
+    header = gzip.decompress(SPARKOV_FILE.read_bytes()).decode().splitlines()[0].split(",")
+    assert not {"ssn", "first", "last", "street", "cc_num", "acct_num", "dob"} & set(header)
+
+
+def test_sparkov_dataset_refuses_a_modified_file(monkeypatch, tmp_path):
+    import pytest
+
+    import app.datasets as datasets
+
+    tampered = tmp_path / "sparkov.csv.gz"
+    tampered.write_bytes(datasets.SPARKOV_FILE.read_bytes() + b"\0")
+    monkeypatch.setattr(datasets, "SPARKOV_FILE", tampered)
+    with pytest.raises(ValueError, match="SHA-256"):
+        datasets._load_sparkov()
+
+
+def test_sim_swap_fields_are_not_testable_on_sparkov():
+    from app.agent.tools import coverage_for_fields
+    from app.datasets import SPARKOV_DATASET_ID, get_dataset, populated_fields
+
+    _, records = get_dataset(SPARKOV_DATASET_ID)
+    coverage = coverage_for_fields(["days_since_sim_change", "new_device"], populated_fields(records))
+    assert coverage["status"] == "not_testable"

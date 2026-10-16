@@ -46,6 +46,11 @@ class Settings:
         """Shared secret that Cloud Scheduler sends to trigger ingestion; unset disables it."""
         return os.environ.get("RULEPILOT_INGEST_TOKEN") or None
 
+    @property
+    def feeds_enabled(self) -> bool:
+        """Whether the scheduled job fetches new public alerts (FBI IC3 PSAs) before investigating."""
+        return os.environ.get("RULEPILOT_FEEDS_ENABLED", "true").lower() not in {"0", "false", "no"}
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

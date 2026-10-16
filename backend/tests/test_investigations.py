@@ -214,7 +214,7 @@ def test_investigation_review_and_audit_flow(client):
         json={"decision": "approve", "reviewer": "analyst-1", "comment": "Validated on synthetic data."},
     )
     assert review.status_code == 200
-    assert review.json()["activation"] == "not_activated"
+    assert review.json()["activation"] == "active"
     stored = client.get(f"/api/v1/investigations/{investigation_id}").json()
     assert stored["reviews"][0]["decision"] == "approve"
     audit = client.get(f"/api/v1/audit?investigation_id={investigation_id}").json()

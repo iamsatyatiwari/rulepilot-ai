@@ -192,10 +192,62 @@ PAYMENTS DATASET V3 AND GOLDEN-SET EVALUATION (2026-10-14)
     is kept; the v2 card-testing recordings were removed.
 
 
+SPARKOV DATA, DEMO BANK, SIMPLER UI (2026-10-15)
+-------------------------------------------------
+  * sparkov-cards-v1: 74,740 card transactions (1,620 fraud, 2.17%) from
+    the independent Sparkov generator (MIT, commit b5eb45c; 200 customers,
+    Jan-Jun 2025), converted by scripts/build_sparkov_dataset.py. Only
+    derived numeric features kept (amount, hour, card present, distance,
+    1h/24h velocity, new payee); fake PII dropped. Versioned gzip file with
+    a SHA-256 check and app/data_files/NOTICE.md. On validation the baseline
+    catches 0% of this fraud; the best single learned threshold (amount >
+    225) reaches 72% recall at 4.2% FPR. SIM swap is not_testable here
+    (golden case sim-swap-sparkov-v1).
+  * Demo bank: app/bank.py + bank_api.py (GET /bank/catalog, POST
+    /bank/payments). Stateless: the browser sends each card's history and
+    security events; the server derives features and scores with the
+    baseline active and approved rules in shadow. BankView.tsx with three
+    fictional cards, payment form, and card-testing / SIM-swap / normal-day
+    scenarios.
+  * UI: Start here guide (default page), investigation summary + review
+    first with the audit trail folded, dataset picker, collapsible catalog,
+    Advanced nav group. ui-guide.md section 1 is a step-by-step walkthrough.
+  * Local end-to-end (production build, recorded v3 rules approved): the
+    card-testing attack is flagged in shadow from the 6th attempt; the SIM-
+    swap transfer (1,240) is approved by the bank and flagged in shadow;
+    normal day unflagged; 1,899 held by the baseline. Live Gemini run on
+    sparkov-cards-v1 passed all guardrails.
+
+
+ACTIVATION, RULE LAB, CUSTOMER REPORTS (2026-10-16)
+---------------------------------------------------
+  * Team decision: approval activates a rule; reject or request-changes
+    deactivates it (review.activation, audit events). Guardrails 13/15
+    updated. Bank, monitor, and /transactions/score decide with the
+    baseline plus approved rules; API fields kept, new ones added.
+  * Rule lab (#lab, /api/v1/lab/*): side-by-side condition table, generated
+    matching / near-miss examples, labelled test cases persisted with the
+    governance backend, run summaries per rule.
+  * Customer fraud reports (bank "Report fraud", POST /bank/reports): stored
+    as test cases with server-derived features. 3+ reports missed by the
+    active rules -> code-written digest (no personal data) investigated by
+    the agent via the scheduled job or POST /customer-reports/investigate;
+    customer_report_check shows how many reported cases the rule catches.
+  * Review panel shows a confirmation after a decision (fixes double
+    approvals); bank names the scenario each approved rule reacts to.
+  * Public alert feeds (app/intel/feeds.py): the scheduled job (and
+    POST /feeds/refresh) fetches the FBI IC3 PSA RSS feed and pages from an
+    allowlist, with timeout, size cap, and a fraud keyword filter; new
+    alerts become advisories (public domain) and are investigated one per
+    run. Live check 16 Oct: 5 feed items, 4 stored, 1 skipped (not fraud).
+    Uses certifi for TLS. Tests never touch the network (conftest).
+  * "Test against data" moved under Advanced options with an explanation.
+
+
 VERIFICATION RESULTS (2026-10-14)
 ---------------------------------
-  * Backend: 112 pytest tests passed (96 before v3, 82 at M4, 36 at M2B).
-  * Frontend: 14 Vitest tests passed (10 at M4, 5 at M2B); tsc and Vite
+  * Backend: 139 pytest tests passed (112 before 15 Oct afternoon) (96 before v3, 82 at M4, 36 at M2B).
+  * Frontend: 22 Vitest tests passed (14 before) (10 at M4, 5 at M2B); tsc and Vite
     build passed.
   * Production-mode run (FastAPI serving the built dashboard) and the
     Firestore emulator: backend/scripts/smoke_check.py passes; state survives

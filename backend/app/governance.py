@@ -42,7 +42,8 @@ class ReviewRecord(ReviewRequest):
     rule_id: str
     rule_version: int
     decided_at: datetime
-    activation: Literal["not_activated"] = "not_activated"
+    # Approval activates the rule (team decision, 16 Oct); other decisions leave it inactive.
+    activation: Literal["not_activated", "active"] = "not_activated"
 
 
 class AuditEvent(BaseModel):
@@ -59,7 +60,7 @@ class StoredInvestigation(BaseModel):
 
 
 class CatalogEntry(BaseModel):
-    """A human-approved rule. Approved for further testing, never active."""
+    """A human-approved rule. Approval activates it; a later reject or request-changes removes it."""
 
     rule: Rule
     approved_by: str
@@ -68,7 +69,7 @@ class CatalogEntry(BaseModel):
     investigation_id: str
     advisory_title: str
     technique: str | None
-    activation: Literal["not_activated"] = "not_activated"
+    activation: Literal["not_activated", "active"] = "active"
 
 
 class InvestigationSummary(BaseModel):
@@ -188,6 +189,7 @@ class GovernanceStore:
                 rule_id=rule.rule_id,
                 rule_version=rule.version,
                 decided_at=datetime.now(timezone.utc),
+                activation="active" if request.decision == "approve" else "not_activated",
             )
             item.reviews.append(record)
             self._save(item)
@@ -210,17 +212,18 @@ class GovernanceStore:
                     technique=item.report.findings.technique_name if item.report.findings else None,
                 )
                 self.backend.put(CATALOG, rule.rule_id, {"payload": entry.model_dump_json()})
-                self._append_audit(investigation_id, "rule_added_to_catalog", {"rule_id": rule.rule_id, "activation": "not_activated"})
+                self._append_audit(investigation_id, "rule_added_to_catalog", {"rule_id": rule.rule_id, "activation": "active"})
             elif self.backend.get(CATALOG, rule.rule_id) is not None:
                 self.backend.delete(CATALOG, rule.rule_id)
-                self._append_audit(investigation_id, "rule_removed_from_catalog", {"rule_id": rule.rule_id, "decision": record.decision})
+                self._append_audit(investigation_id, "rule_removed_from_catalog", {"rule_id": rule.rule_id, "decision": record.decision, "activation": "deactivated"})
             return record
 
     def catalog(self) -> list[CatalogEntry]:
         entries = []
         for document in self.backend.all(CATALOG):
             try:
-                entries.append(CatalogEntry.model_validate_json(document["payload"]))
+                # Every catalog entry is active; entries stored before 16 Oct say "not_activated".
+                entries.append(CatalogEntry.model_validate_json(document["payload"]).model_copy(update={"activation": "active"}))
             except (KeyError, ValueError):
                 continue
         return sorted(entries, key=lambda entry: entry.approved_at)

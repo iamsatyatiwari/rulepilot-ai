@@ -13,7 +13,7 @@ advisory → structured findings → coverage-gap check → candidate rules
 
 - **Gemini proposes and coordinates.** One Google ADK agent reads the advisory and uses bounded tools.
 - **The deterministic engine measures.** Python code validates rules and computes all metrics.
-- **Humans decide.** Approval is recorded and never activates a rule.
+- **Humans decide.** Only a human approval activates a rule; reject or request-changes switches it off. Every step is audited.
 
 First vertical slice: payment-card fraud. Account takeover, scams, and AML are future extensions.
 
@@ -41,8 +41,11 @@ First vertical slice: payment-card fraud. Account takeover, scams, and AML are f
 | T9 README, deck, 3-minute video | README rewritten (15 Oct); deck and video not started |
 | Shadow scoring (mock bank feed) and scheduled ingestion endpoint | Done locally, not yet deployed |
 | `payments-scenario-v3` dataset (30k rows, 12 fields) and golden-set evaluation (L4) | Done locally; live golden run passes on v3 |
+| `sparkov-cards-v1` (75k rows from the independent MIT-licensed Sparkov simulator) | Done locally |
+| Demo bank, Start here guide, simplified investigations UI | Done locally |
+| Approval activates rules (16 Oct team decision); Rule lab; customer fraud reports and FBI IC3 alert fetching feeding the scheduled job | Done locally |
 
-Latest verification: 112 backend tests, 14 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
+Latest verification: 139 backend tests, 22 frontend tests, type check and build passing; production-mode and Firestore-emulator smoke checks pass. Live learning loop verified: run → approve → re-run returns `covered_by_existing_rules`.
 
 ## Key decisions (do not reverse without a demonstrated need)
 
@@ -50,7 +53,7 @@ Latest verification: 112 backend tests, 14 frontend tests, type check and build 
 2. **One ADK agent** with five tools. No multi-agent system.
 3. **Gemini API key auth** (`GOOGLE_API_KEY`); Secret Manager on Cloud Run. Vertex AI with ADC is supported by config but not used.
 4. **Model fallback chain** because Gemini Flash capacity is unreliable: `gemini-3.8-flash → gemini-flash-latest → gemini-3.6-flash → gemini-3.5-flash-lite`.
-5. **Synthetic data, honestly labelled.** `card-scenario-v2` contains an injected card-testing pattern; `payments-scenario-v3` (default for investigations) adds an injected SIM-swap account-takeover pattern and device, SIM-change, credential-reset, and payee fields. Always say so.
+5. **Synthetic data, honestly labelled.** `card-scenario-v2` contains an injected card-testing pattern; `payments-scenario-v3` (default for investigations) adds an injected SIM-swap account-takeover pattern and device, SIM-change, credential-reset, and payee fields. Always say so. `sparkov-cards-v1` comes from an independent simulator (not designed by us) and has no SIM, device, or decline fields.
 6. **Two demo advisories:** card testing (testable) and SIM swap — testable on `payments-scenario-v3`, `not_testable` on `card-scenario-v2` (shows the system refuses to invent a link when the data is missing).
 7. **Single Cloud Run service** serving API + built dashboard on one origin.
 8. **"Learning" means governed system state, not model training:** approved rules enter the catalog and reviewer feedback is available to the agent as data. No fine-tuning, no autonomous rule changes.

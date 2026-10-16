@@ -118,15 +118,22 @@ function jsonResponse(payload: unknown, status = 200) {
 describe('Intelligence investigations workspace', () => {
   let fetchMock: ReturnType<typeof vi.fn>
   let stored: { report: ReturnType<typeof report>; reviews: unknown[] }
+  let fetched: unknown[] = []
 
   beforeEach(() => {
-    window.location.hash = ''
+    window.location.hash = '#investigations'
     stored = { report: report(), reviews: [] }
+    fetched = []
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.endsWith('/health')) return jsonResponse({ status: 'ok' })
       if (url.endsWith('/api/v1/agent/status')) return jsonResponse({ configured: true, model: 'gemini-3.8-flash', framework: 'google-adk', max_llm_calls: 12, timeout_seconds: 120, max_candidates: 3 })
-      if (url.endsWith('/api/v1/advisories')) return jsonResponse({ count: 2, items: [advisory, simAdvisory] })
+      if (url.endsWith('/api/v1/advisories')) return jsonResponse({ count: 2 + fetched.length, items: [advisory, simAdvisory, ...fetched] })
+      if (url.endsWith('/api/v1/feeds/status')) return jsonResponse({ enabled: true, source: 'https://www.ic3.gov/PSA/RSS', fetched_advisories: fetched.length, last_refresh: fetched.length ? { checked_at: '2026-10-16T10:00:00Z', feed_items: 5, new_advisories: ['ic3-261016'], skipped_not_fraud: ['Election workers'], errors: [] } : null })
+      if (url.endsWith('/api/v1/feeds/refresh')) {
+        fetched = [{ ...simAdvisory, advisory_id: 'ic3-261016', title: 'Scammers Use Gift Card Testing Against Retailers', rights_note: 'U.S. Government public service announcement (public domain); fetched automatically by the scheduled job.' }]
+        return jsonResponse({ checked_at: '2026-10-16T10:00:00Z', feed_items: 5, new_advisories: ['ic3-261016'], skipped_not_fraud: ['Election workers'], errors: [] })
+      }
       if (url.endsWith('/api/v1/investigations') && init?.method === 'POST') {
         const body = JSON.parse(String(init.body))
         if (body.advisory_id === simAdvisory.advisory_id) {
@@ -141,12 +148,12 @@ describe('Intelligence investigations workspace', () => {
       if (url.endsWith('/api/v1/rule-catalog')) {
         const approved = (stored.reviews as { decision: string; reviewer: string; comment: string; decided_at: string }[])
           .filter((review) => review.decision === 'approve')
-          .map((review) => ({ rule: { ...candidate, status: 'approved' }, approved_by: review.reviewer, approved_at: review.decided_at, review_comment: review.comment, investigation_id: 'inv-1', advisory_title: advisory.title, technique: 'Card testing', activation: 'not_activated' }))
+          .map((review) => ({ rule: { ...candidate, status: 'approved' }, approved_by: review.reviewer, approved_at: review.decided_at, review_comment: review.comment, investigation_id: 'inv-1', advisory_title: advisory.title, technique: 'Card testing', activation: 'active' }))
         return jsonResponse({ active: [baselineRule], approved_not_active: approved })
       }
       if (url.endsWith('/api/v1/investigations/inv-1/review')) {
         const body = JSON.parse(String(init?.body))
-        stored = { ...stored, reviews: [{ review_id: 'inv-1-R1', investigation_id: 'inv-1', rule_id: candidate.rule_id, rule_version: 1, decided_at: '2026-10-14T10:05:00Z', activation: 'not_activated', ...body }] }
+        stored = { ...stored, reviews: [{ review_id: 'inv-1-R1', investigation_id: 'inv-1', rule_id: candidate.rule_id, rule_version: 1, decided_at: '2026-10-14T10:05:00Z', activation: body.decision === 'approve' ? 'active' : 'not_activated', ...body }] }
         return jsonResponse(stored.reviews[0])
       }
       if (url.endsWith('/api/v1/investigations/inv-1')) return jsonResponse(stored)
@@ -168,16 +175,17 @@ describe('Intelligence investigations workspace', () => {
     expect(screen.getByText('Verified in source')).toBeInTheDocument()
     expect(screen.getByText('Not found in source')).toBeInTheDocument()
     expect(screen.getByText('ip_address')).toBeInTheDocument()
-    expect(screen.getByText('+51.3 pp')).toBeInTheDocument()
+    expect(within(screen.getByLabelText('Held-out changes')).getByText('+51.3 pp')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Summary' })).getByText(/catches/)).toBeInTheDocument()
     expect(screen.getByText('Rejected: fields not available in this dataset: ip_address')).toBeInTheDocument()
     expect(screen.getByText(/1 of 2 quotes found verbatim/)).toBeInTheDocument()
     expect(screen.getByRole('table', { name: /candidate rules and validation metrics/i })).toHaveTextContent('Selected')
 
     const post = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/api/v1/investigations') && init?.method === 'POST')
-    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ advisory_id: advisory.advisory_id })
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ advisory_id: advisory.advisory_id, dataset_id: 'payments-scenario-v3' })
   })
 
-  it('records a human review decision without activating the rule', async () => {
+  it('records a human review decision and activates the approved rule', async () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: `Investigate ${advisory.title}` }))
     await screen.findByText(/changed held-out rule-set recall/)
@@ -191,7 +199,7 @@ describe('Intelligence investigations workspace', () => {
 
     const history = await screen.findByRole('list', { name: 'Review history' })
     expect(within(history).getByText('Approved for further testing')).toBeInTheDocument()
-    expect(within(history).getByText(/activation: not activated/)).toBeInTheDocument()
+    expect(within(history).getByText(/activation: active/)).toBeInTheDocument()
 
     const banner = document.querySelector('.report-banner') as HTMLElement
     await within(banner).findByText('Approved for further testing')
@@ -199,8 +207,16 @@ describe('Intelligence investigations workspace', () => {
     expect(banner).not.toHaveTextContent(/Awaiting human review/)
 
     const catalog = screen.getByRole('region', { name: 'Reviewed rule catalog' })
-    expect(await within(catalog).findByText('Approved · not active')).toBeInTheDocument()
+    expect(await within(catalog).findByText('Approved · active')).toBeInTheDocument()
     expect(within(catalog).getByText(/Approved by analyst-1/)).toBeInTheDocument()
+
+    // A clear confirmation replaces the form, so the decision cannot be submitted twice by accident.
+    const confirmation = await screen.findByText(/is now/, { selector: '.review-confirmation p' })
+    expect(confirmation).toHaveTextContent('active')
+    expect(screen.getByRole('link', { name: /test it in the demo bank/i })).toHaveAttribute('href', '#bank')
+    expect(screen.queryByRole('button', { name: /approve for further testing/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /record a different decision/i }))
+    expect(screen.getByRole('button', { name: /approve for further testing/i })).toBeInTheDocument()
   })
 
   it('shows the reviewed rule catalog and a covered-by-existing-rules result', async () => {
@@ -241,5 +257,15 @@ describe('Intelligence investigations workspace', () => {
     render(<App />)
     expect(await screen.findByText(/no Gemini credentials are configured/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: `Investigate ${advisory.title}` })).toBeDisabled()
+  })
+
+  it('checks public feeds and lists fetched alerts; data choice sits under Advanced options', async () => {
+    render(<App />)
+    await screen.findByText(/Not checked yet/)
+    expect(screen.getByText('Advanced options')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /check for new public alerts/i }))
+    expect(await screen.findByText('Scammers Use Gift Card Testing Against Retailers')).toBeInTheDocument()
+    expect(screen.getByText('Fetched by scheduled job')).toBeInTheDocument()
+    expect(await screen.findByText(/1 new fraud alert\(s\), 1 skipped as not fraud-related/)).toBeInTheDocument()
   })
 })

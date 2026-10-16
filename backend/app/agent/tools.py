@@ -134,7 +134,7 @@ class InvestigationToolkit:
                     "rule_id": rule.rule_id,
                     "name": rule.name,
                     "version": rule.version,
-                    "state": "active_baseline" if rule.rule_id == BASELINE_RULE.rule_id else "human_approved_not_active",
+                    "state": "active_baseline" if rule.rule_id == BASELINE_RULE.rule_id else "human_approved_active",
                     "conditions": [c.model_dump(mode="json") for c in rule.conditions],
                     "logical_operator": rule.logical_operator.value,
                 }

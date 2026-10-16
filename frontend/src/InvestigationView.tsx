@@ -33,6 +33,8 @@ import {
   type AdvisorySummary,
   type AgentStatus,
   type CustomAdvisory,
+  type FeedStatus,
+  type RefreshResult,
   type InvestigationReport,
   type InvestigationStatus,
   type InvestigationSummary,
@@ -40,7 +42,7 @@ import {
   type RuleCatalog,
   type StoredInvestigation,
 } from './api'
-import { CandidateConditions, MetricColumn, formatCount, formatDelta, formatPercent, safeMessage } from './components'
+import { CandidateConditions, MetricColumn, formatCount, formatDelta, formatPercent, ruleText, safeMessage } from './components'
 
 const STATUS_LABEL: Record<InvestigationStatus, string> = {
   pending_human_review: 'Pending human review',
@@ -55,6 +57,7 @@ const SOURCE_LABEL: Record<string, string> = {
   regulatory_advisory: 'Regulatory advisory',
   industry_guidance: 'Industry guidance',
   analyst_supplied: 'Analyst supplied',
+  customer_reports: 'Customer fraud reports',
 }
 
 const DECISION_LABEL: Record<ReviewDecision, string> = {
@@ -109,8 +112,10 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState<ReviewDecision | null>(null)
   const [error, setError] = useState('')
+  const [changing, setChanging] = useState(false)
   const { report, reviews } = item
   const reviewable = report.status === 'pending_human_review' && report.selected_rule
+  const latest = reviews.length ? reviews[reviews.length - 1] : null
 
   const submit = async (decision: ReviewDecision) => {
     if (!reviewer.trim() || !comment.trim()) {
@@ -122,6 +127,7 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
     try {
       await postJson(`/api/v1/investigations/${report.investigation_id}/review`, { decision, reviewer: reviewer.trim(), comment: comment.trim() })
       setComment('')
+      setChanging(false)
       await onReviewed()
     } catch (reviewError) {
       setError(safeMessage(reviewError))
@@ -132,18 +138,33 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
 
   return (
     <article className="panel" id="review">
-      <div className="panel-heading"><div><div className="section-kicker">GOVERNANCE</div><h2>Human review</h2><p>Decisions are recorded with reviewer, rule version, and time. Approval never activates a rule.</p></div><span className="review-icon"><UserCheck size={18} /></span></div>
+      <div className="panel-heading"><div><div className="section-kicker">GOVERNANCE</div><h2>Human review</h2><p>Decisions are recorded with reviewer, rule version, and time. Approving a rule activates it in the Demo bank and Transaction monitor; rejecting it switches it off again.</p></div><span className="review-icon"><UserCheck size={18} /></span></div>
       {reviews.length > 0 && (
         <ul className="review-history" aria-label="Review history">
           {reviews.map((review) => (
             <li key={review.review_id}>
               <span className={`decision-badge decision-${review.decision}`}>{DECISION_LABEL[review.decision]}</span>
-              <div><strong>{review.reviewer}</strong> · <span>{new Date(review.decided_at).toLocaleString()}</span><p>{review.comment}</p><small><Lock size={11} /> {review.rule_id} v{review.rule_version} · activation: not activated</small></div>
+              <div><strong>{review.reviewer}</strong> · <span>{new Date(review.decided_at).toLocaleString()}</span><p>{review.comment}</p><small><Lock size={11} /> {review.rule_id} v{review.rule_version} · activation: {review.activation === 'active' ? 'active' : 'not activated'}</small></div>
             </li>
           ))}
         </ul>
       )}
-      {reviewable ? (
+      {reviewable && latest && !changing && (
+        <div className={`review-confirmation confirmation-${latest.decision}`} role="status">
+          {latest.decision === 'approve' ? <BadgeCheck size={20} /> : <CircleAlert size={20} />}
+          <div>
+            <strong>{latest.decision === 'approve' ? `Approved by ${latest.reviewer}` : `${DECISION_LABEL[latest.decision]} by ${latest.reviewer}`} · {new Date(latest.decided_at).toLocaleString()}</strong>
+            {latest.decision === 'approve'
+              ? <p>Rule <b>{latest.rule_id}</b> is now <b>active</b>: the Demo bank and Transaction monitor use it, together with the original rule, to hold suspicious payments. Record <i>Reject</i> or <i>Request changes</i> to switch it off.</p>
+              : <p>Rule <b>{latest.rule_id}</b> is not in the reviewed catalog and is not used in the bank.</p>}
+            <div className="review-actions">
+              {latest.decision === 'approve' && <a className="primary-button" href="#bank">Test it in the Demo bank <ArrowRight size={14} /></a>}
+              <button className="secondary-button" onClick={() => setChanging(true)}>Record a different decision</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {reviewable && (!latest || changing) ? (
         <div className="review-form">
           <label>Reviewer<input value={reviewer} onChange={(event) => setReviewer(event.target.value)} maxLength={100} placeholder="e.g. fraud-strategy analyst" /></label>
           <label>Comment<textarea value={comment} onChange={(event) => setComment(event.target.value)} maxLength={1000} rows={3} placeholder="Reason for the decision and any follow-up testing required" /></label>
@@ -154,9 +175,9 @@ function ReviewPanel({ item, onReviewed }: { item: StoredInvestigation; onReview
             <button className="secondary-button danger" onClick={() => void submit('reject')} disabled={submitting !== null}><X size={14} /> Reject</button>
           </div>
         </div>
-      ) : (
+      ) : !reviewable ? (
         <div className="review-limitation"><CircleSlash size={17} /><div><strong>No candidate awaits review</strong><p>This investigation did not produce a held-out-tested candidate, so there is nothing to approve.</p></div></div>
-      )}
+      ) : null}
     </article>
   )
 }
@@ -168,17 +189,39 @@ function referenceRules(report: InvestigationReport) {
 function RuleCatalogPanel({ catalog }: { catalog: RuleCatalog | null }) {
   if (!catalog) return null
   return (
-    <section className="panel catalog-panel" aria-label="Reviewed rule catalog">
-      <div className="panel-heading"><div><div className="section-kicker">LEARNING LOOP · REVIEWED RULE CATALOG</div><h2>Rules every new investigation is compared against</h2><p>Approved candidates join the reviewed rule set and inform future investigations. Approval is not activation: approved rules stay inactive until a separate deployment decision.</p></div><span className="review-icon"><GitBranch size={17} /></span></div>
+    <section aria-label="Reviewed rule catalog">
+    <details className="panel catalog-panel">
+      <summary className="catalog-summary">Reviewed rule catalog <small>{catalog.active.length} active · {catalog.approved_not_active.length} approved and active</small></summary>
+      <div className="panel-heading"><div><div className="section-kicker">LEARNING LOOP · REVIEWED RULE CATALOG</div><h2>Rules every new investigation is compared against</h2><p>Approved candidates join the rule set: they are active in the Demo bank and every new investigation is compared against them. Reject or request changes to remove one.</p></div><span className="review-icon"><GitBranch size={17} /></span></div>
       <ul className="catalog-list">
         {catalog.active.map((rule) => (
           <li key={rule.rule_id}><span className="catalog-state state-active">Active baseline</span><div><strong>{rule.rule_id}</strong> · {rule.name} <small>v{rule.version}</small><CandidateConditions rule={rule} /></div></li>
         ))}
         {catalog.approved_not_active.map((entry) => (
-          <li key={entry.rule.rule_id}><span className="catalog-state state-approved">Approved · not active</span><div><strong>{entry.rule.rule_id}</strong> · {entry.rule.name} <small>v{entry.rule.version}</small><CandidateConditions rule={entry.rule} /><p className="catalog-provenance">Approved by {entry.approved_by} on {new Date(entry.approved_at).toLocaleString()} from “{entry.advisory_title}”. “{entry.review_comment}”</p></div></li>
+          <li key={entry.rule.rule_id}><span className="catalog-state state-approved">Approved · active</span><div><strong>{entry.rule.rule_id}</strong> · {entry.rule.name} <small>v{entry.rule.version}</small><CandidateConditions rule={entry.rule} /><p className="catalog-provenance">Approved by {entry.approved_by} on {new Date(entry.approved_at).toLocaleString()} from “{entry.advisory_title}”. “{entry.review_comment}”</p></div></li>
         ))}
       </ul>
       {catalog.approved_not_active.length === 0 && <p className="muted-text">No candidates have been approved yet. Approve one in Human review and re-run an investigation to see it used.</p>}
+    </details>
+    </section>
+  )
+}
+
+function Summary({ report, reviews }: { report: InvestigationReport; reviews: StoredInvestigation['reviews'] }) {
+  const latest = reviews.length ? reviews[reviews.length - 1] : null
+  const { findings, coverage, holdout_delta: delta, selected_rule: rule } = report
+  const verified = report.evidence_quotes.filter((quote) => quote.verified).length
+  return (
+    <section className="panel summary-panel" aria-label="Summary">
+      <div className="panel-heading"><div><div className="section-kicker">IN PLAIN WORDS</div><h2>What RulePilot found</h2></div></div>
+      <ol className="summary-list">
+        <li><strong>The advisory</strong><span>{findings ? `${findings.technique_name}: ${findings.summary}` : 'The agent did not finish reading the advisory.'} {report.evidence_quotes.length > 0 && <em>({verified} of {report.evidence_quotes.length} quotes checked word-for-word in the source)</em>}</span></li>
+        <li><strong>Can our data test it?</strong><span>{coverage ? (coverage.status === 'not_testable' ? `No. The data has none of the fields it needs (${coverage.missing_fields.join(', ')}), so no rule was invented.` : coverage.status === 'partially_testable' ? `Partly. Available: ${coverage.available_fields.join(', ')}. Missing: ${coverage.missing_fields.join(', ')}.` : `Yes. All needed fields exist: ${coverage.available_fields.join(', ')}.`) : 'Unknown.'}</span></li>
+        <li><strong>Proposed rule</strong><span>{rule ? <><code>{ruleText(rule)}</code> — chosen from {report.candidates.length} candidate(s) tested on validation data.</> : report.status === 'covered_by_existing_rules' ? 'None needed: the existing rules already cover this technique.' : 'None.'}</span></li>
+        {report.customer_report_check && <li><strong>Customer reports</strong><span>The proposed rule catches <b>{report.customer_report_check.caught_by_proposed_rule} of {report.customer_report_check.reported_cases}</b> payments customers reported as fraud that the active rules missed.</span></li>}
+        {delta && <li><strong>Result on unseen test data</strong><span>Adding it to the current rules catches <b>{formatDelta(delta.recall_change)}</b> more fraud ({delta.fraud_newly_detected >= 0 ? '+' : ''}{formatCount(delta.fraud_newly_detected)} cases) with a false-alarm change of <b>{formatDelta(delta.false_positive_rate_change, 2)}</b> ({delta.alert_change >= 0 ? '+' : ''}{formatCount(delta.alert_change)} alerts).</span></li>}
+        <li><strong>Your decision</strong><span>{latest ? `${DECISION_LABEL[latest.decision]} by ${latest.reviewer}.${latest.decision === 'approve' ? ' The rule is now active in the Demo bank.' : ''}` : report.status === 'pending_human_review' ? 'Approve, request changes, or reject below. Approving switches the rule on in the Demo bank.' : 'Nothing to approve for this run.'}</span></li>
+      </ol>
     </section>
   )
 }
@@ -204,6 +247,10 @@ function Report({ item, onReviewed }: { item: StoredInvestigation; onReviewed: (
         </div>
       </section>
 
+      <Summary report={report} reviews={item.reviews} />
+      <ReviewPanel item={item} onReviewed={onReviewed} />
+      <details className="audit-details">
+        <summary>Evidence and audit trail <small>pipeline · source quotes · findings · coverage · candidates · held-out test · agent trace · guardrails · limitations</small></summary>
       <Pipeline item={item} />
 
       <section className="report-grid two">
@@ -328,18 +375,22 @@ function Report({ item, onReviewed }: { item: StoredInvestigation; onReviewed: (
         </article>
       </section>
 
-      <section className="report-grid two">
-        <ReviewPanel item={item} onReviewed={onReviewed} />
         <article className="panel">
           <div className="panel-heading"><div><div className="section-kicker">LIMITATIONS</div><h2>What this result does not show</h2></div><span className="review-icon"><CircleAlert size={17} /></span></div>
           <BulletList items={report.limitations} />
         </article>
-      </section>
+      </details>
     </div>
   )
 }
 
 const EMPTY_CUSTOM: CustomAdvisory = { title: '', publisher: '', source_url: '', text: '' }
+
+const DATASET_OPTIONS = [
+  { id: 'payments-scenario-v3', label: 'Payments scenario v3 · 30k synthetic, card + account signals (default)' },
+  { id: 'sparkov-cards-v1', label: 'Sparkov cards v1 · 75k from an independent simulator' },
+  { id: 'card-scenario-v2', label: 'Card scenario v2 · 6k synthetic, card signals only' },
+]
 
 export default function InvestigationView() {
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null)
@@ -354,6 +405,9 @@ export default function InvestigationView() {
   const [showCustom, setShowCustom] = useState(false)
   const [custom, setCustom] = useState<CustomAdvisory>(EMPTY_CUSTOM)
   const [catalog, setCatalog] = useState<RuleCatalog | null>(null)
+  const [datasetId, setDatasetId] = useState(DATASET_OPTIONS[0].id)
+  const [feedStatus, setFeedStatus] = useState<FeedStatus | null>(null)
+  const [checkingFeeds, setCheckingFeeds] = useState(false)
 
   const refreshCatalog = useCallback(async () => {
     try {
@@ -380,6 +434,7 @@ export default function InvestigationView() {
   const load = useCallback(async () => {
     setLoading(true)
     setLoadError('')
+    apiRequest<FeedStatus>('/api/v1/feeds/status').then(setFeedStatus).catch(() => setFeedStatus(null))
     const [status, advisoryList, items] = await Promise.allSettled([
       apiRequest<AgentStatus>('/api/v1/agent/status'),
       apiRequest<AdvisoryList>('/api/v1/advisories'),
@@ -409,7 +464,7 @@ export default function InvestigationView() {
     setRunning(label)
     setRunError('')
     try {
-      const result = await postJson<StoredInvestigation>('/api/v1/investigations', body, INVESTIGATION_TIMEOUT_MS)
+      const result = await postJson<StoredInvestigation>('/api/v1/investigations', { ...body, dataset_id: datasetId }, INVESTIGATION_TIMEOUT_MS)
       setCurrent(result)
       setShowCustom(false)
       await refreshHistory()
@@ -417,6 +472,21 @@ export default function InvestigationView() {
       setRunError(safeMessage(error))
     } finally {
       setRunning(null)
+    }
+  }
+
+  const checkFeeds = async () => {
+    setCheckingFeeds(true)
+    setRunError('')
+    try {
+      await postJson<RefreshResult>('/api/v1/feeds/refresh', {}, 60000)
+      const [list, status] = await Promise.all([apiRequest<AdvisoryList>('/api/v1/advisories'), apiRequest<FeedStatus>('/api/v1/feeds/status')])
+      setAdvisories(list.items)
+      setFeedStatus(status)
+    } catch (error) {
+      setRunError(safeMessage(error))
+    } finally {
+      setCheckingFeeds(false)
     }
   }
 
@@ -444,11 +514,28 @@ export default function InvestigationView() {
       {loadError && <section className="state-card error-card" role="alert"><div className="state-icon error"><ShieldAlert size={19} /></div><div className="state-copy"><strong>Intelligence sources are unavailable</strong><p>{loadError}</p></div><button className="primary-button" onClick={() => void load()}><RefreshCw size={15} /> Retry</button></section>}
 
       <section className="source-section" aria-label="Intelligence sources">
-        <div className="section-heading"><div><div className="section-kicker">STEP 1 · CHOOSE INTELLIGENCE</div><h2>Curated advisories</h2><p>Documents are treated as untrusted data. The agent has no web, file, shell, or code tools.</p></div><button className="secondary-button" onClick={() => setShowCustom((value) => !value)} aria-expanded={showCustom}><ClipboardPaste size={15} /> {showCustom ? 'Close' : 'Paste an advisory'}</button></div>
+        <div className="section-heading"><div><div className="section-kicker">STEP 1 · CHOOSE AN ADVISORY</div><h2>Fraud advisories</h2><p>Press Investigate on one. Gemini treats the text as untrusted data and has no web, file, or code tools.</p></div><button className="secondary-button" onClick={() => setShowCustom((value) => !value)} aria-expanded={showCustom}><ClipboardPaste size={15} /> {showCustom ? 'Close' : 'Paste an advisory'}</button></div>
+        <div className="feed-bar">
+          <button className="secondary-button" onClick={() => void checkFeeds()} disabled={checkingFeeds || !feedStatus?.enabled}>{checkingFeeds ? <LoaderCircle size={15} className="spin" /> : <RefreshCw size={15} />} Check for new public alerts</button>
+          <small className="muted-text">
+            {feedStatus?.enabled === false ? 'Fetching public alerts is turned off on this server.' : feedStatus?.last_refresh
+              ? `The scheduled job checks the FBI IC3 alert feed. Last check ${new Date(feedStatus.last_refresh.checked_at).toLocaleString()}: ${feedStatus.last_refresh.new_advisories.length} new fraud alert(s), ${feedStatus.last_refresh.skipped_not_fraud.length} skipped as not fraud-related${feedStatus.last_refresh.errors.length ? `, ${feedStatus.last_refresh.errors.length} error(s)` : ''}. ${feedStatus.fetched_advisories} fetched in total.`
+              : 'The scheduled job checks the FBI IC3 alert feed for new fraud alerts. Not checked yet.'}
+          </small>
+        </div>
+        <details className="advanced-options">
+          <summary>Advanced options</summary>
+          <label className="dataset-picker">Test against data
+            <select value={datasetId} onChange={(event) => setDatasetId(event.target.value)}>
+              {DATASET_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+            </select>
+          </label>
+          <p className="muted-text">Which historical transactions the proposed rule is measured on. Keep the default. Switch to <i>Sparkov cards v1</i> to see the honesty check: it has no SIM or device data, so a SIM-swap advisory comes back “not testable” instead of a made-up rule.</p>
+        </details>
         <div className="advisory-grid">
           {advisories.map((advisory) => (
             <article key={advisory.advisory_id} className="advisory-card">
-              <div className="advisory-top"><span className="source-type">{SOURCE_LABEL[advisory.source_type] ?? advisory.source_type}</span><small>{advisory.published_date ?? `Retrieved ${advisory.retrieved_at}`}</small></div>
+              <div className="advisory-top"><span className="source-type">{SOURCE_LABEL[advisory.source_type] ?? advisory.source_type}</span>{advisory.rights_note.includes('fetched automatically') && <span className="source-type fetched-tag">Fetched by scheduled job</span>}<small>{advisory.published_date ?? `Retrieved ${advisory.retrieved_at}`}</small></div>
               <h3>{advisory.title}</h3>
               <p className="advisory-publisher">{advisory.publisher}</p>
               <p className="advisory-excerpt">{advisory.excerpt.slice(0, 210)}…</p>

@@ -138,6 +138,7 @@ export type InvestigationStatus =
   | 'agent_incomplete'
 
 export type InvestigationReport = {
+  customer_report_check?: { reported_cases: number; caught_by_proposed_rule: number } | null
   investigation_id: string
   created_at: string
   origin: 'live' | 'recorded' | 'scheduled'
@@ -192,7 +193,7 @@ export type ReviewRecord = {
   reviewer: string
   comment: string
   decided_at: string
-  activation: 'not_activated'
+  activation: 'not_activated' | 'active'
 }
 
 export type StoredInvestigation = { report: InvestigationReport; reviews: ReviewRecord[] }
@@ -216,10 +217,10 @@ export type CatalogEntry = {
   investigation_id: string
   advisory_title: string
   technique: string | null
-  activation: 'not_activated'
+  activation: 'not_activated' | 'active'
 }
 
-export type RuleCatalog = { active: Rule[]; approved_not_active: CatalogEntry[] }
+export type RuleCatalog = { active: Rule[]; approved_not_active: CatalogEntry[]; approved_active?: CatalogEntry[] }
 
 export type Transaction = {
   transaction_id?: string | null
@@ -255,6 +256,8 @@ export type TransactionScore = {
   shadow_rules: RuleVerdict[]
   shadow_flagged_by: string[]
   caught_only_in_shadow: boolean
+  approved_flagged_by?: string[]
+  caught_only_by_approved?: boolean
   note: string
 }
 
@@ -270,6 +273,9 @@ export type FeedSummary = {
   legitimate_flagged_by_active_rules: number
   legitimate_flagged_only_in_shadow: number
   shadow_rules: number
+  fraud_caught_by_approved_rules?: number
+  legitimate_flagged_by_approved_rules?: number
+  approved_rules?: number
 }
 
 export type SimulateResponse = { seed: number; disclaimer: string; summary: FeedSummary; items: FeedItem[] }
@@ -314,6 +320,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs 
       },
     })
     if (!response.ok) throw new ApiRequestError(messageForStatus(response.status), response.status)
+    if (response.status === 204) return undefined as T
     return (await response.json()) as T
   } catch (error) {
     if (error instanceof ApiRequestError) throw error
@@ -327,3 +334,81 @@ export const postJson = <T,>(path: string, body: unknown, timeoutMs?: number) =>
   apiRequest<T>(path, { method: 'POST', body: JSON.stringify(body) }, timeoutMs)
 
 export const getApiBaseUrl = () => API_BASE_URL
+
+export type DemoCard = {
+  card_id: string
+  holder: string
+  label: string
+  last4: string
+  account_age_days: number
+  days_since_sim_change: number
+  description: string
+}
+
+export type BankMerchant = {
+  merchant_id: string
+  name: string
+  channel: 'online' | 'in_store'
+  distance_from_home_km: number
+  typical_amount: number
+}
+
+export type BankCatalog = { cards: DemoCard[]; merchants: BankMerchant[]; disclaimer: string }
+
+export type BankHistoryItem = { at: string; merchant_id: string; amount: number; declined: boolean }
+export type SecurityEvent = { at: string; type: 'sim_change' | 'credential_reset' | 'new_device_login' }
+
+export type PaymentRequest = {
+  card_id: string
+  merchant_id: string
+  amount: number
+  at: string
+  cvv_correct: boolean
+  new_device: boolean
+  history: BankHistoryItem[]
+  security_events: SecurityEvent[]
+}
+
+export type PaymentResult = {
+  outcome: 'approved' | 'held_for_review' | 'declined_by_issuer'
+  explanation: string
+  shadow_summary: string
+  features: Transaction
+  score: TransactionScore
+}
+
+export type LabRule = { rule: Rule; source: 'baseline' | 'approved_active' | 'candidate'; label: string }
+export type ConditionCheck = { field: string; operator: string; threshold: number; value: number | null; passed: boolean | null }
+export type Explanation = { rule_id: string; logical_operator: string; flagged: boolean; conditions: ConditionCheck[] }
+export type TestCase = {
+  case_id: string
+  name: string
+  transaction: Transaction
+  expected: 'fraud' | 'legit'
+  note: string
+  created_by: string
+  source: 'analyst' | 'customer_report'
+  created_at: string
+}
+export type CaseResult = { case: TestCase; flagged: boolean; passed: boolean }
+export type RunSummary = {
+  rule_id: string
+  cases: number
+  passed: number
+  fraud_cases: number
+  fraud_caught: number
+  legit_cases: number
+  false_alarms: number
+  results: CaseResult[]
+}
+export type ReportsSummary = {
+  reports: number
+  missed_by_active_rules: number
+  ready_to_investigate: boolean
+  min_missed_reports: number
+  digest_advisory_id: string | null
+  digest_preview: string | null
+}
+
+export type RefreshResult = { checked_at: string; feed_items: number; new_advisories: string[]; skipped_not_fraud: string[]; errors: string[] }
+export type FeedStatus = { enabled: boolean; source: string; fetched_advisories: number; last_refresh: RefreshResult | null }

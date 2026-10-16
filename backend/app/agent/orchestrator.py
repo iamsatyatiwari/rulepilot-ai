@@ -107,6 +107,8 @@ class InvestigationReport(BaseModel):
     guardrails: list[GuardrailCheck]
     trace: list[TraceStep]
     limitations: list[str]
+    # Set for investigations started from customer fraud reports: how many reported cases the proposed rule catches.
+    customer_report_check: dict[str, int] | None = None
 
 
 def _delta(baseline: EvaluationMetrics, combined: EvaluationMetrics) -> Delta:

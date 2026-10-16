@@ -96,7 +96,7 @@ def test_approved_rule_joins_catalog_and_survives_restart(tmp_path):
     entries = restarted.catalog()
     assert [entry.rule.rule_id for entry in entries] == [report.selected_rule.rule_id]
     assert entries[0].rule.status.value == "approved"
-    assert entries[0].activation == "not_activated"
+    assert entries[0].activation == "active"
     assert restarted.get(report.investigation_id).reviews[0].decision == "approve"
 
 

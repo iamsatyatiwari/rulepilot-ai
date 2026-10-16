@@ -18,11 +18,10 @@ type Outcome = { label: string; tone: 'shadow' | 'caught' | 'missed' | 'false-al
 
 function outcomeOf(item: FeedItem): Outcome {
   const { score, synthetic_fraud: fraud } = item
-  if (fraud && score.caught_only_in_shadow) return { label: 'Caught only by approved rule', tone: 'shadow' }
+  if (fraud && score.caught_only_by_approved) return { label: 'Caught by approved rule', tone: 'shadow' }
   if (fraud && score.decision === 'flag') return { label: 'Caught by active rule', tone: 'caught' }
   if (fraud) return { label: 'Missed by all rules', tone: 'missed' }
   if (score.decision === 'flag') return { label: 'False alarm · active', tone: 'false-alarm' }
-  if (score.caught_only_in_shadow) return { label: 'False alarm · shadow', tone: 'false-alarm' }
   return { label: 'Allowed', tone: 'quiet' }
 }
 
@@ -70,7 +69,7 @@ function Verdicts({ score }: { score: TransactionScore }) {
   return (
     <ul className="verdict-list">
       {score.active_rules.map((verdict) => (
-        <li key={verdict.rule_id}><span className="catalog-state state-active">Active</span><strong>{verdict.rule_id}</strong><span className={`verdict ${verdict.flagged ? 'verdict-flag' : 'verdict-allow'}`}>{verdict.flagged ? 'Flag' : 'Allow'}</span>{verdict.missing_fields.length > 0 && <small>missing: {verdict.missing_fields.join(', ')}</small>}</li>
+        <li key={verdict.rule_id}><span className={`catalog-state ${verdict.investigation_id ? 'state-approved' : 'state-active'}`}>{verdict.investigation_id ? 'Approved · active' : 'Active'}</span><strong>{verdict.rule_id}</strong><span className={`verdict ${verdict.flagged ? 'verdict-flag' : 'verdict-allow'}`}>{verdict.flagged ? 'Flag' : 'Allow'}</span>{verdict.missing_fields.length > 0 && <small>missing: {verdict.missing_fields.join(', ')}</small>}</li>
       ))}
       {score.shadow_rules.map((verdict) => (
         <li key={verdict.rule_id}><span className="catalog-state state-approved">Shadow</span><strong>{verdict.rule_id}</strong><span className={`verdict ${verdict.flagged ? 'verdict-flag' : 'verdict-allow'}`}>{verdict.flagged ? 'Would flag' : 'Would allow'}</span>{verdict.missing_fields.length > 0 && <small>missing: {verdict.missing_fields.join(', ')}</small>}</li>
@@ -142,7 +141,7 @@ export default function MonitorView() {
     }
   }
 
-  const shadowCount = catalog?.approved_not_active.length ?? 0
+  const approvedCount = catalog?.approved_not_active.length ?? 0
   const summary = feed?.summary
   const done = feed !== null && visible >= feed.items.length
 
@@ -150,12 +149,12 @@ export default function MonitorView() {
     <>
       <section className="welcome-row">
         <div>
-          <div className="eyebrow"><span className="eyebrow-dot" /> MOCK BANK FEED → ACTIVE RULES DECIDE → APPROVED RULES IN SHADOW</div>
+          <div className="eyebrow"><span className="eyebrow-dot" /> MOCK BANK FEED → ORIGINAL RULE + APPROVED RULES DECIDE</div>
           <h1>Transaction monitor</h1>
-          <p className="welcome-subtitle">A simulated bank feed sends fresh synthetic transactions to the rule engine. Active rules make the decision. Rules a human approved run beside them in shadow mode, so you can see what they would catch before anyone activates them.</p>
+          <p className="welcome-subtitle">A simulated bank feed sends fresh synthetic transactions to the rule engine. The original rule and every rule a human approved make the decision together, so you can see how much more fraud the approved rules catch and what they cost in false alarms.</p>
         </div>
         <div className="header-actions">
-          <span className="agent-chip agent-ready"><Eye size={14} /> {shadowCount} rule(s) in shadow</span>
+          <span className="agent-chip agent-ready"><Eye size={14} /> {approvedCount} approved rule(s) active</span>
           <button className="primary-button" onClick={() => void stream()} disabled={streaming}>{streaming ? <RefreshCw size={15} className="spin" /> : <Play size={15} />} Stream {BATCH_SIZE} transactions</button>
         </div>
       </section>
@@ -163,12 +162,12 @@ export default function MonitorView() {
       {error && <section className="state-card error-card" role="alert"><div className="state-icon error"><ShieldAlert size={19} /></div><div className="state-copy"><strong>The transaction monitor is unavailable</strong><p>{error}</p></div></section>}
 
       <section className="panel catalog-panel" aria-label="Rules applied to the feed">
-        <div className="panel-heading"><div><div className="section-kicker">RULES APPLIED TO EVERY TRANSACTION</div><h2>Active rules decide · approved rules run in shadow</h2><p>Shadow mode is how banks trial a new rule: it is evaluated on live traffic, but its verdict is only recorded. Approval never activates a rule.</p></div><span className="review-icon"><ShieldCheck size={17} /></span></div>
+        <div className="panel-heading"><div><div className="section-kicker">RULES APPLIED TO EVERY TRANSACTION</div><h2>The original rule and approved rules decide</h2><p>Approving a rule in Investigations activates it here. Rejecting it or requesting changes deactivates it. Every change is in the audit log.</p></div><span className="review-icon"><ShieldCheck size={17} /></span></div>
         <ul className="catalog-list">
           {catalog?.active.map((rule) => <li key={rule.rule_id}><span className="catalog-state state-active">Active · decides</span><div><strong>{rule.rule_id}</strong> · {rule.name}<CandidateConditions rule={rule} /></div></li>)}
-          {catalog?.approved_not_active.map((entry) => <li key={entry.rule.rule_id}><span className="catalog-state state-approved">Shadow · approved</span><div><strong>{entry.rule.rule_id}</strong> · {entry.rule.name}<CandidateConditions rule={entry.rule} /><p className="catalog-provenance">From “{entry.advisory_title}”, approved by {entry.approved_by}.</p></div></li>)}
+          {catalog?.approved_not_active.map((entry) => <li key={entry.rule.rule_id}><span className="catalog-state state-approved">Approved · active</span><div><strong>{entry.rule.rule_id}</strong> · {entry.rule.name}<CandidateConditions rule={entry.rule} /><p className="catalog-provenance">From “{entry.advisory_title}”, approved by {entry.approved_by}.</p></div></li>)}
         </ul>
-        {catalog && shadowCount === 0 && <p className="muted-text">No approved rules yet. Approve a candidate in Investigations and it will appear here in shadow mode.</p>}
+        {catalog && approvedCount === 0 && <p className="muted-text">No approved rules yet. Approve a candidate in Investigations and it will be applied here.</p>}
       </section>
 
       {summary && (
@@ -176,9 +175,9 @@ export default function MonitorView() {
           <div><span>Transactions</span><strong>{formatCount(summary.transactions)}</strong></div>
           <div><span>Synthetic fraud</span><strong>{formatCount(summary.synthetic_fraud)}</strong></div>
           <div><span>Caught by active rules</span><strong>{formatCount(summary.fraud_caught_by_active_rules)}</strong></div>
-          <div className="strip-highlight"><span>Caught only by approved rules</span><strong className="good">+{formatCount(summary.fraud_caught_only_in_shadow)}</strong></div>
+          <div className="strip-highlight"><span>Extra fraud caught by approved rules</span><strong className="good">+{formatCount(summary.fraud_caught_by_approved_rules ?? 0)}</strong></div>
           <div><span>Missed by all rules</span><strong className={summary.fraud_missed_by_all_rules ? 'warn' : ''}>{formatCount(summary.fraud_missed_by_all_rules)}</strong></div>
-          <div><span>Shadow false alarms</span><strong className={summary.legitimate_flagged_only_in_shadow ? 'warn' : ''}>{formatCount(summary.legitimate_flagged_only_in_shadow)}</strong></div>
+          <div><span>Extra false alarms from approved rules</span><strong className={summary.legitimate_flagged_by_approved_rules ? 'warn' : ''}>{formatCount(summary.legitimate_flagged_by_approved_rules ?? 0)}</strong></div>
         </section>
       )}
 
@@ -187,8 +186,8 @@ export default function MonitorView() {
         {feed ? (
           <div className="table-wrap">
             <table className="feed-table">
-              <caption className="sr-only">Mock bank transactions with active and shadow rule verdicts</caption>
-              <thead><tr><th scope="col">Transaction</th><th scope="col">Amount</th><th scope="col">Txns 1h</th><th scope="col">Declines 24h</th><th scope="col">Card present</th><th scope="col">SIM change (days)</th><th scope="col">New device</th><th scope="col">Decision</th><th scope="col">Shadow</th><th scope="col">Synthetic label</th><th scope="col">Outcome</th></tr></thead>
+              <caption className="sr-only">Mock bank transactions with rule decisions</caption>
+              <thead><tr><th scope="col">Transaction</th><th scope="col">Amount</th><th scope="col">Txns 1h</th><th scope="col">Declines 24h</th><th scope="col">Card present</th><th scope="col">SIM change (days)</th><th scope="col">New device</th><th scope="col">Decision</th><th scope="col">Approved rule</th><th scope="col">Synthetic label</th><th scope="col">Outcome</th></tr></thead>
               <tbody>
                 {feed.items.slice(0, visible).map((item) => {
                   const outcome = outcomeOf(item)
@@ -203,7 +202,7 @@ export default function MonitorView() {
                       <td>{t.days_since_sim_change ?? '—'}</td>
                       <td>{t.new_device == null ? '—' : t.new_device ? 'Yes' : 'No'}</td>
                       <td><span className={`verdict ${item.score.decision === 'flag' ? 'verdict-flag' : 'verdict-allow'}`}>{item.score.decision === 'flag' ? 'Flag' : 'Allow'}</span></td>
-                      <td>{item.score.shadow_flagged_by.length ? <span className="verdict verdict-shadow">Would flag</span> : <span className="not-missed">—</span>}</td>
+                      <td>{item.score.approved_flagged_by?.length ? <span className="verdict verdict-shadow">{item.score.approved_flagged_by.join(', ')}</span> : <span className="not-missed">—</span>}</td>
                       <td>{item.synthetic_fraud ? 'Fraud' : 'Legitimate'}</td>
                       <td><span className={`outcome-tag tone-${outcome.tone}`}>{outcome.label}</span></td>
                     </tr>
@@ -228,7 +227,7 @@ export default function MonitorView() {
           <div className="review-actions"><button className="primary-button" type="submit" disabled={scoring}>{scoring ? <RefreshCw size={15} className="spin" /> : <ShieldCheck size={15} />} Score transaction</button></div>
         </form>
         <section className="panel" aria-label="Score result" aria-live="polite">
-          <div className="panel-heading"><div><div className="section-kicker">RESULT</div><h2>{single ? (single.decision === 'flag' ? 'Flagged by active rules' : single.caught_only_in_shadow ? 'Allowed, but an approved rule would flag it' : 'Allowed') : 'No transaction scored yet'}</h2><p>{single ? single.note : 'Pick a preset or enter values, then score it.'}</p></div>{single?.caught_only_in_shadow && <span className="review-icon"><CircleAlert size={17} /></span>}</div>
+          <div className="panel-heading"><div><div className="section-kicker">RESULT</div><h2>{single ? (single.caught_only_by_approved ? 'Flagged by an approved rule' : single.decision === 'flag' ? 'Flagged by the original rule' : 'Allowed') : 'No transaction scored yet'}</h2><p>{single ? single.note : 'Pick a preset or enter values, then score it.'}</p></div>{single?.caught_only_by_approved && <span className="review-icon"><CircleAlert size={17} /></span>}</div>
           {single && <Verdicts score={single} />}
         </section>
       </section>

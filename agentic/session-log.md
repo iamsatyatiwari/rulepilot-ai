@@ -13,7 +13,7 @@ This file carries working state from one AI-assistant session (context window) t
 
 ## Current handoff
 
-- **Branches:** PR #1 merged into `main`. PR #2 (`feat/dataset-v3`) is ready for review — `gh pr merge` is blocked by the permission classifier ("Merge Without Review"), so the **user merges on GitHub**. `docs/readme-status` (README rewrite + PROJECT_STATUS refresh) branches from `feat/dataset-v3`; draft PR #3 into `main`.
+- **Branches:** PRs #1–#3 merged into `main` (`82b44e6`). `feat/sparkov-mock-bank` = Sparkov dataset + demo bank + simplified UI + docs; draft PR into `main`, awaiting user merge (`gh pr merge` is blocked by the classifier — user merges on GitHub).
 - **Phase:** local development before Cloud Run deploy. Deadline 18 Oct 2026, team target 17 Oct — see `PROJECT_STATUS.md` (stale: still says the M3 branch is unmerged and 82 tests; refresh with the README rewrite).
 - **Done 14 Oct (feat/dataset-v3):** `payments-scenario-v3` (30k rows, 202 held-out fraud vs 39 on v2), 5 new fields, injected SIM-swap takeover, default for investigations/ingestion; mock feed and monitor UI updated; golden set (L4) `app/golden.py` + `scripts/golden_eval.py`. 110 backend / 14 frontend tests, tsc, build pass. Live golden run: both v3 cases PASS (flash-lite fallback).
 - **Done 15 Oct (same branch, PR #2):** takeover amounts redrawn so ~80% stay under 1,500 (judged on train/validation: baseline OR SIM rule recall 33% → 45–48%). Recorded demo runs refreshed live on v3: card testing (+5.4 pp), SIM swap testable (+10.8 pp), covered-after-approval; v2 SIM-swap `not_testable` recording kept. 112 backend / 14 frontend tests.
@@ -21,7 +21,11 @@ This file carries working state from one AI-assistant session (context window) t
 - **Gemini key facts:** key is in `backend/.env` only. Free tier: 20 requests/day per model; 429 on `gemini-3.8-flash`, `gemini-flash-latest`, `gemini-3.6-flash`, often `gemini-3.5-flash`; `gemini-3.5-flash-lite` works → enable billing before the demo/Cloud Run.
 - **Repo location:** `~/dev/rulepilot-ai` (moved off iCloud). If `pytest` ever reports far too many tests, look for `* 2.py` copies.
 - **GitHub:** `gh` logged in as `shuklapiyush113` (collaborator, write). Repo is public.
-- **Next steps:** user merges PR #2 and #3 → enable billing + GCP project ID + `gcloud` (not installed) → Cloud Run deploy (skill 9) → README live URL → deck → video.
+- **Done 15 Oct afternoon:** `sparkov-cards-v1` (Sparkov run in an isolated venv in the session scratchpad; not in the repo), demo bank, Start here guide, summary-first investigations, ui-guide step-by-step. 123 backend / 18 frontend tests; local production-mode end-to-end verified.
+- **Done 16 Oct:** approval activates rules (user chose this over a separate activation step); Rule lab; customer fraud reports + digest investigations (scheduled job and button). 133 backend / 21 frontend tests. Local servers: backend :8000, frontend :5173.
+- **User's "caller ban"** = the cron job fetching public fraud reports. Done 16 Oct: FBI IC3 PSA feed (`app/intel/feeds.py`), plus customer reports. FTC has no usable RSS feed. "Test against data" moved under Advanced options.
+- **User's architecture image** is not available in this conversation (it was in an earlier session); ask them to re-attach to compare box by box.
+- **Next steps:** user merges the Sparkov/demo-bank PR → enable billing + GCP project ID + `gcloud` (not installed) → Cloud Run deploy (skill 9) → README live URL → deck → video.
 
 ## Local environment (macOS)
 
@@ -53,6 +57,17 @@ git diff --check
 ```
 
 ## Log
+
+### 2026-10-16 — public alert feeds
+- Clarified "caller ban" = cron fetching public fraud reports. Built IC3 feed fetching; live check stored 4 alerts. 139 backend / 22 frontend tests.
+
+### 2026-10-16 — activation, rule lab, customer reports
+- User: approval should activate rules; wanted manual test data with the rule side by side; "caller ban" = cron fetching new frauds + customer reports.
+- Built all three (except public-feed fetching). Fixed confusing review UX (double approvals).
+
+### 2026-10-15 — Sparkov data, demo bank, simpler UI
+- User asked to use Claude instead of Gemini: declined (competition requires Google models). Chose the Sparkov generator (MIT) over Kaggle downloads (licences unverifiable).
+- Added sparkov-cards-v1, demo bank, Start here, summary-first report, docs.
 
 ### 2026-10-15 — README and status
 - Deleted stray root `requirements.txt`. PR #2 merge blocked by the classifier. Rewrote README (judge-facing) and PROJECT_STATUS (current numbers, checklist, video script with SIM swap and monitor).

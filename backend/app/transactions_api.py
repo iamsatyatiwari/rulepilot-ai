@@ -46,6 +46,9 @@ class FeedSummary(BaseModel):
     legitimate_flagged_by_active_rules: int
     legitimate_flagged_only_in_shadow: int
     shadow_rules: int
+    fraud_caught_by_approved_rules: int = 0
+    legitimate_flagged_by_approved_rules: int = 0
+    approved_rules: int = 0
 
 
 class SimulateResponse(BaseModel):
@@ -57,9 +60,9 @@ class SimulateResponse(BaseModel):
 
 @router.post("/transactions/score", response_model=TransactionScore, tags=["transactions"])
 def score(request: ScoreRequest, store: GovernanceStore = Depends(get_store)) -> TransactionScore:
-    """Score one transaction: active rules decide; approved rules are reported in shadow mode."""
+    """Score one transaction: the baseline and every approved rule are active and decide."""
     transaction = request.transaction.model_copy(update={"ground_truth_fraud": None})
-    return score_transaction(transaction, [BASELINE_RULE], store.catalog())
+    return score_transaction(transaction, [BASELINE_RULE], [], store.catalog())
 
 
 @router.post("/transactions/simulate", response_model=SimulateResponse, tags=["transactions"])
@@ -69,12 +72,12 @@ def simulate(request: SimulateRequest, store: GovernanceStore = Depends(get_stor
         feed = create_demo_feed(request.count, request.seed)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    shadow = store.catalog()
+    approved = store.catalog()
     items = []
     for transaction in feed:
         label = bool(transaction.ground_truth_fraud)
         # The scorer never sees the label; it is attached afterwards for the demo summary.
-        result = score_transaction(transaction.model_copy(update={"ground_truth_fraud": None}), [BASELINE_RULE], shadow)
+        result = score_transaction(transaction.model_copy(update={"ground_truth_fraud": None}), [BASELINE_RULE], [], approved)
         items.append(FeedItem(transaction=transaction, synthetic_fraud=label, score=result))
 
     fraud = [item for item in items if item.synthetic_fraud]
@@ -90,13 +93,17 @@ def simulate(request: SimulateRequest, store: GovernanceStore = Depends(get_stor
         ),
         legitimate_flagged_by_active_rules=sum(item.score.decision == "flag" for item in legit),
         legitimate_flagged_only_in_shadow=sum(item.score.caught_only_in_shadow for item in legit),
-        shadow_rules=len(shadow),
+        shadow_rules=0,
+        fraud_caught_by_approved_rules=sum(item.score.caught_only_by_approved for item in fraud),
+        legitimate_flagged_by_approved_rules=sum(item.score.caught_only_by_approved for item in legit),
+        approved_rules=len(approved),
     )
     return SimulateResponse(
         seed=request.seed,
         disclaimer=(
             "Mock bank feed: fresh synthetic transactions with fraud deliberately over-represented "
-            "(about 40%) for demonstration. Labels are synthetic and are not shown to the rules."
+            "(about 40%) for demonstration. Labels are synthetic and are not shown to the rules. "
+            "Approved rules are active and decide alongside the original rule."
         ),
         summary=summary,
         items=items,

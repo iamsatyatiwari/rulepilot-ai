@@ -6,6 +6,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import router as api_router
+from app.bank_api import router as bank_router
+from app.lab_api import router as lab_router
 from app.config import get_settings
 from app.investigations_api import router as investigations_router
 from app.transactions_api import router as transactions_router
@@ -46,6 +48,8 @@ def info() -> dict[str, str]:
 app.include_router(api_router)
 app.include_router(investigations_router)
 app.include_router(transactions_router)
+app.include_router(bank_router)
+app.include_router(lab_router)
 
 static_dir = settings.static_dir
 if static_dir is not None and (static_dir / "index.html").is_file():

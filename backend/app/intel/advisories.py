@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StrictStr
 ADVISORY_DIR = Path(__file__).parent / "advisories"
 MAX_ADVISORY_CHARS = 20_000
 
-SourceType = Literal["government_psa", "regulatory_advisory", "industry_guidance", "analyst_supplied"]
+SourceType = Literal["government_psa", "regulatory_advisory", "industry_guidance", "analyst_supplied", "customer_reports"]
 
 
 class Advisory(BaseModel):

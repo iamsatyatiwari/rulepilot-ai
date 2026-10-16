@@ -59,6 +59,14 @@ GOLDEN_CASES: tuple[GoldenCase, ...] = (
         note="Without SIM or device data the system must refuse rather than map onto unrelated fields.",
     ),
     GoldenCase(
+        case_id="sim-swap-sparkov-v1",
+        advisory_id="fbi-ic3-sim-swap-2022",
+        dataset_id="sparkov-cards-v1",
+        expected_status=["not_testable"],
+        expected_coverage=["not_testable"],
+        note="Independent Sparkov data has no SIM, device, or credential fields.",
+    ),
+    GoldenCase(
         case_id="card-testing-card-v2",
         advisory_id="jpm-card-testing",
         dataset_id="card-scenario-v2",
