@@ -2,7 +2,7 @@
 
 **Fraud techniques change faster than detection rules.** RulePilot AI turns new financial-crime intelligence into tested, governed rule proposals. A Gemini agent reads a fraud advisory and finds gaps in the bank's existing rules. It then proposes candidate rules. Deterministic code measures every claim, and a human reviewer makes the final decision.
 
-> **Live demo:** _URL added after the Cloud Run deployment._
+> **Live demo:** https://rulepilot-ai-876092777486.asia-southeast1.run.app (Cloud Run, `asia-southeast1`; Gemini via Vertex AI; Firestore storage)
 > Built for the Google Cloud AI Builder Cup 2026, BFSI theme: *Intelligent Risk, Fraud & Financial Experiences*.
 > All transaction data in this repository is **synthetic**. Metrics demonstrate the workflow and are not real-world detection rates.
 
@@ -116,17 +116,34 @@ The golden set (`backend/app/golden.py`) re-runs each advisory against each data
 
 ## Deploy to Cloud Run
 
-These commands assume a Google Cloud project with billing enabled.
+These commands assume a Google Cloud project with billing enabled. The live demo uses Gemini through **Vertex AI with the Cloud Run service account** (Application Default Credentials), so no API key is stored anywhere.
 
 ```bash
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com firestore.googleapis.com
+PROJECT=your-project-id
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
+  firestore.googleapis.com aiplatform.googleapis.com
 gcloud firestore databases create --location=asia-southeast1
-printf '%s' 'YOUR_GEMINI_KEY' | gcloud secrets create gemini-api-key --data-file=-
+
+# Runtime service account: Gemini (Vertex AI), Firestore, and source builds
+SA="$(gcloud projects describe $PROJECT --format='value(projectNumber)')-compute@developer.gserviceaccount.com"
+for ROLE in roles/aiplatform.user roles/datastore.user roles/run.builder; do
+  gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role=$ROLE --condition=None
+done
+
+cat > env.yaml <<EOF
+GOOGLE_GENAI_USE_VERTEXAI: "TRUE"
+GOOGLE_CLOUD_PROJECT: "$PROJECT"
+GOOGLE_CLOUD_LOCATION: "global"
+RULEPILOT_STORE: "firestore"
+RULEPILOT_GEMINI_MODEL: "gemini-3.6-flash"
+RULEPILOT_GEMINI_FALLBACK_MODELS: "gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.8-flash"
+RULEPILOT_AGENT_TIMEOUT_SECONDS: "150"
+EOF
 gcloud run deploy rulepilot-ai --source . --region asia-southeast1 --allow-unauthenticated \
-  --memory 1Gi --timeout 300 --max-instances 2 \
-  --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=FALSE,RULEPILOT_STORE=firestore,GOOGLE_CLOUD_PROJECT=PROJECT_ID \
-  --set-secrets GOOGLE_API_KEY=gemini-api-key:latest
+  --memory 1Gi --cpu 1 --timeout 300 --max-instances 2 --env-vars-file env.yaml
 ```
+
+To use a Gemini API key instead (local development), set `GOOGLE_GENAI_USE_VERTEXAI=FALSE` and `GOOGLE_API_KEY` in `backend/.env`.
 
 Setting up the Cloud Scheduler job and verifying the deployment are covered in [agentic/skills.md](agentic/skills.md), skill 9.
 

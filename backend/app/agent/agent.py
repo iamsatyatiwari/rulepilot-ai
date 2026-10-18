@@ -75,7 +75,7 @@ def build_user_message(advisory: Advisory) -> str:
 
 TRANSIENT_MARKERS = (
     "503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED", "overloaded", "high demand",
-    "Timeout", "ReadError",
+    "504", "DEADLINE_EXCEEDED", "Timeout", "ReadError",
 )
 RETRY_DELAYS_SECONDS = (3.0,)
 # Upper bound for one model HTTP request. Without it a stalled request can outlive
