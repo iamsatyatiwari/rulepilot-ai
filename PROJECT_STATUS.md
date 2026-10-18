@@ -5,7 +5,7 @@
 
 > **Summary:** The product works end to end locally with live Gemini.
 > - Built and verified: governed learning, shadow scoring on a mock bank feed, scheduled ingestion, a 30,000-row dataset where both demo advisories are testable, and a golden-set evaluation.
-> - Required and still missing: the **Cloud Run deployment (live URL)**, the **PDF deck**, and the **video**. The repository is public and the README is rewritten.
+> - **Deployed 18 Oct:** https://rulepilot-ai-876092777486.asia-southeast1.run.app (Cloud Run, Vertex AI Gemini, Firestore). Smoke check 24/24; live investigations pass. Still missing: the **PDF deck** and the **video**.
 
 ---
 
@@ -13,14 +13,14 @@
 
 | # | Required deliverable | Status | Blocker / next action |
 | --- | --- | --- | --- |
-| 1 | Working prototype on Google Cloud (Cloud Run / GCP / Firebase) with a **live URL** | ❌ Not deployed | Need a GCP project ID with billing, and `gcloud` (not installed on the Mac) or Cloud Shell |
+| 1 | Working prototype on Google Cloud (Cloud Run / GCP / Firebase) with a **live URL** | ✅ Deployed 18 Oct | https://rulepilot-ai-876092777486.asia-southeast1.run.app |
 | 2 | **Public** GitHub repository with source | ✅ Public; `main` updated | Merge PR #2 and the README PR |
 | 3 | Demo video, **strictly under 3 minutes** (YouTube / Vimeo / public Drive) | ❌ Not started | Record after deployment; script in section 5 |
 | 4 | Presentation deck (PDF): solution architecture + business case | ❌ Not started | Outline in section 5 |
 | 5 | Uses Google AI models (Gemini / Gemma) | ✅ Gemini via Google ADK | — |
 | 6 | Problem statement identified (BFSI) | ⚠️ Select at submission | Choose "BFSI: Intelligent Risk, Fraud & Financial Experiences" |
 | 7 | All materials in English | ✅ | — |
-| — | README describing the current product | ✅ Rewritten 15 Oct | Add the live URL after deployment |
+| — | README describing the current product | ✅ Rewritten 15 Oct; live URL added 18 Oct | — |
 
 Judging weights: Technical merit & GenAI 40% · Problem alignment & impact 25% · Innovation 25% · UX 10%.
 

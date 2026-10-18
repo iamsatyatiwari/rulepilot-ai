@@ -62,6 +62,12 @@ def test_each_model_request_has_a_bounded_http_timeout():
 
 
 def test_stalled_requests_are_treated_as_transient():
-    for message in ("ConnectTimeout: ", "ReadTimeout: ", "ReadError: ", "ServerError: 503 UNAVAILABLE"):
+    for message in (
+        "ConnectTimeout: ",
+        "ReadTimeout: ",
+        "ReadError: ",
+        "ServerError: 503 UNAVAILABLE",
+        "ServerError: 504 DEADLINE_EXCEEDED",
+    ):
         assert agent_module._is_transient(message)
     assert not agent_module._is_transient("ClientError: 400 INVALID_ARGUMENT")
